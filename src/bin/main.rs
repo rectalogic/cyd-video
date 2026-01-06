@@ -7,24 +7,10 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_graphics::{pixelcolor::Rgb565, prelude::*, primitives::Rectangle};
-use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_backtrace as _;
-use esp_hal::{
-    clock::CpuClock,
-    delay::Delay,
-    gpio::{Level, Output, OutputConfig},
-    spi::{
-        Mode as SpiMode,
-        master::{Config as SpiConfig, Spi},
-    },
-    time::Rate,
-    timer::timg::TimerGroup,
-};
-use ili9341::{DisplaySize240x320, Ili9341, Orientation};
+use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 use log::info;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -49,45 +35,18 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Embassy initialized!");
 
-    let spi = Spi::new(
-        peripherals.SPI2,
-        SpiConfig::default()
-            .with_frequency(Rate::from_mhz(40))
-            .with_mode(SpiMode::_0),
-    )
-    .unwrap()
-    //CLK
-    .with_sck(peripherals.GPIO14)
-    //DIN
-    .with_mosi(peripherals.GPIO13)
-    .with_miso(peripherals.GPIO12);
+    let mut display = esp32_video::Display::new(esp32_video::DisplayPeripherals {
+        spi2: peripherals.SPI2,
+        gpio2: peripherals.GPIO2,
+        gpio4: peripherals.GPIO4,
+        gpio12: peripherals.GPIO12,
+        gpio13: peripherals.GPIO13,
+        gpio14: peripherals.GPIO14,
+        gpio15: peripherals.GPIO15,
+        gpio21: peripherals.GPIO21,
+    });
 
-    let dc = Output::new(peripherals.GPIO2, Level::Low, OutputConfig::default());
-    let cs = Output::new(peripherals.GPIO15, Level::Low, OutputConfig::default());
-    let reset = Output::new(peripherals.GPIO4, Level::Low, OutputConfig::default());
-
-    let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).unwrap();
-    let interface = SPIInterface::new(spi_dev, dc);
-
-    let mut display = Ili9341::new(
-        interface,
-        reset,
-        &mut Delay::new(),
-        Orientation::Portrait,
-        DisplaySize240x320,
-    )
-    .unwrap();
-
-    let _backlight = Output::new(peripherals.GPIO21, Level::High, OutputConfig::default());
-
-    display.clear(Rgb565::BLUE).unwrap();
-
-    display
-        .fill_solid(
-            &Rectangle::new(Point::new(30, 20), Size::new(50, 50)),
-            Rgb565::RED,
-        )
-        .unwrap();
+    display.draw();
 
     // TODO: Spawn some tasks
     let _ = spawner;
