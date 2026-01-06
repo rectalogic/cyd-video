@@ -724,6 +724,7 @@ name = "esp32-video"
 version = "0.1.0"
 dependencies = [
  "critical-section",
+ "display-interface",
  "display-interface-spi",
  "embassy-executor",
  "embassy-time",

@@ -44,7 +44,8 @@ async fn main(spawner: Spawner) -> ! {
         gpio14: peripherals.GPIO14,
         gpio15: peripherals.GPIO15,
         gpio21: peripherals.GPIO21,
-    });
+    })
+    .unwrap();
 
     display.draw();
 

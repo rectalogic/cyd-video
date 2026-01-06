@@ -1,7 +1,9 @@
 #![deny(clippy::large_stack_frames)]
 
-use display_interface_spi::SPIInterface;
+use core::ops::Deref;
 
+use display_interface::DisplayError as InterfaceDisplayError;
+use display_interface_spi::SPIInterface;
 use embedded_graphics::{
     draw_target::DrawTarget, pixelcolor::Rgb565, prelude::*, primitives::Rectangle,
 };
@@ -14,7 +16,7 @@ use esp_hal::{
     peripherals::{GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
         Mode as SpiMode,
-        master::{Config as SpiConfig, Spi},
+        master::{Config as SpiConfig, ConfigError, Spi},
     },
     time::Rate,
 };
@@ -24,6 +26,12 @@ type InternalDisplay<'a> = Ili9341<
     SPIInterface<ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
     Output<'a>,
 >;
+
+#[derive(Debug)]
+pub enum DisplayError {
+    ConfigError(ConfigError),
+    DisplayError(InterfaceDisplayError),
+}
 
 pub struct DisplayPeripherals {
     pub spi2: SPI2<'static>,
@@ -37,19 +45,17 @@ pub struct DisplayPeripherals {
 }
 
 pub struct Display<'a> {
-    _backlight: Output<'a>,
     display: InternalDisplay<'a>,
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: DisplayPeripherals) -> Self {
+    pub fn new(peripherals: DisplayPeripherals) -> Result<Self, DisplayError> {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
                 .with_frequency(Rate::from_mhz(40))
                 .with_mode(SpiMode::_0),
-        )
-        .unwrap()
+        )?
         //CLK
         .with_sck(peripherals.gpio14)
         //DIN
@@ -60,7 +66,7 @@ impl<'a> Display<'a> {
         let cs = Output::new(peripherals.gpio15, Level::Low, OutputConfig::default());
         let reset = Output::new(peripherals.gpio4, Level::Low, OutputConfig::default());
 
-        let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).unwrap();
+        let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).expect("infallible");
         let interface = SPIInterface::new(spi_dev, dc);
 
         let display = Ili9341::new(
@@ -69,15 +75,11 @@ impl<'a> Display<'a> {
             &mut Delay::new(),
             Orientation::Landscape,
             DisplaySize240x320,
-        )
-        .unwrap();
+        )?;
 
         let _backlight = Output::new(peripherals.gpio21, Level::High, OutputConfig::default());
 
-        Self {
-            _backlight,
-            display,
-        }
+        Ok(Self { display })
     }
 
     pub fn draw(&mut self) {
@@ -88,5 +90,25 @@ impl<'a> Display<'a> {
                 Rgb565::RED,
             )
             .unwrap();
+    }
+}
+
+impl<'a> Deref for Display<'a> {
+    type Target = InternalDisplay<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.display
+    }
+}
+
+impl From<ConfigError> for DisplayError {
+    fn from(value: ConfigError) -> Self {
+        DisplayError::ConfigError(value)
+    }
+}
+
+impl From<InterfaceDisplayError> for DisplayError {
+    fn from(value: InterfaceDisplayError) -> Self {
+        DisplayError::DisplayError(value)
     }
 }
