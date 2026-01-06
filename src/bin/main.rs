@@ -7,10 +7,9 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
-use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
+use esp_hal::{clock::CpuClock, delay::Delay};
 use log::info;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -21,8 +20,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
     clippy::large_stack_frames,
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
-#[esp_rtos::main]
-async fn main(spawner: Spawner) -> ! {
+#[esp_hal::main]
+fn main() -> ! {
     // generator version: 1.1.0
 
     esp_println::logger::init_logger_from_env();
@@ -30,10 +29,7 @@ async fn main(spawner: Spawner) -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timg0.timer0);
-
-    info!("Embassy initialized!");
+    let mut delay = Delay::new();
 
     let mut display = cyd_video::Display::new(cyd_video::DisplayPeripherals {
         spi2: peripherals.SPI2,
@@ -49,12 +45,9 @@ async fn main(spawner: Spawner) -> ! {
 
     display.draw();
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
-
     loop {
         info!("Hello world!");
-        Timer::after(Duration::from_secs(1)).await;
+        delay.delay_ms(1000u32);
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v~1.0/examples
