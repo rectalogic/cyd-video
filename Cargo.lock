@@ -99,6 +99,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyd-video"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "display-interface",
+ "display-interface-spi",
+ "embassy-executor",
+ "embassy-time",
+ "embedded-graphics",
+ "embedded-hal-bus",
+ "esp-backtrace",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "esp-rtos",
+ "ili9341",
+ "log",
+ "static_cell",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -717,27 +738,6 @@ checksum = "b76170a463d18f888a1ad258031901036fd827a9ef126733053ba5f8739fb0c8"
 dependencies = [
  "critical-section",
  "vcell",
-]
-
-[[package]]
-name = "esp32-video"
-version = "0.1.0"
-dependencies = [
- "critical-section",
- "display-interface",
- "display-interface-spi",
- "embassy-executor",
- "embassy-time",
- "embedded-graphics",
- "embedded-hal-bus",
- "esp-backtrace",
- "esp-bootloader-esp-idf",
- "esp-hal",
- "esp-println",
- "esp-rtos",
- "ili9341",
- "log",
- "static_cell",
 ]
 
 [[package]]

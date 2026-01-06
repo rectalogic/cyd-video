@@ -35,7 +35,7 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Embassy initialized!");
 
-    let mut display = esp32_video::Display::new(esp32_video::DisplayPeripherals {
+    let mut display = cyd_video::Display::new(cyd_video::DisplayPeripherals {
         spi2: peripherals.SPI2,
         gpio2: peripherals.GPIO2,
         gpio4: peripherals.GPIO4,
