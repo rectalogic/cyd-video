@@ -1,11 +1,16 @@
 #![deny(clippy::large_stack_frames)]
 
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 
 use display_interface::DisplayError as InterfaceDisplayError;
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{
-    draw_target::DrawTarget, pixelcolor::Rgb565, prelude::*, primitives::Rectangle,
+    draw_target::DrawTarget,
+    mono_font::{MonoTextStyle, ascii::FONT_6X10},
+    pixelcolor::Rgb565,
+    prelude::*,
+    primitives::Rectangle,
+    text::{Baseline, Text},
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
@@ -27,7 +32,7 @@ type InternalDisplay<'a> = Ili9341<
 >;
 
 #[derive(Debug)]
-pub enum InitError {
+pub enum Error {
     ConfigError(ConfigError),
     DisplayError(InterfaceDisplayError),
 }
@@ -48,7 +53,7 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: Peripherals) -> Result<Self, InitError> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error> {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -81,6 +86,14 @@ impl<'a> Display<'a> {
         Ok(Self { display })
     }
 
+    pub fn message(&mut self, message: &str) -> Result<(), InterfaceDisplayError> {
+        self.display.clear(Rgb565::BLACK)?;
+        let style = MonoTextStyle::new(&FONT_6X10, Rgb565::WHITE);
+        Text::with_baseline(message, Point::default(), style, Baseline::Top)
+            .draw(&mut self.display)?;
+        Ok(())
+    }
+
     pub fn draw(&mut self) {
         self.display.clear(Rgb565::BLUE).unwrap();
         self.display
@@ -100,14 +113,20 @@ impl<'a> Deref for Display<'a> {
     }
 }
 
-impl From<ConfigError> for InitError {
-    fn from(value: ConfigError) -> Self {
-        InitError::ConfigError(value)
+impl<'a> DerefMut for Display<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.display
     }
 }
 
-impl From<InterfaceDisplayError> for InitError {
+impl From<ConfigError> for Error {
+    fn from(value: ConfigError) -> Self {
+        Error::ConfigError(value)
+    }
+}
+
+impl From<InterfaceDisplayError> for Error {
     fn from(value: InterfaceDisplayError) -> Self {
-        InitError::DisplayError(value)
+        Error::DisplayError(value)
     }
 }
