@@ -9,7 +9,6 @@ use embedded_graphics::{
     mono_font::{MonoTextStyle, ascii::FONT_6X10},
     pixelcolor::Rgb565,
     prelude::*,
-    primitives::Rectangle,
     text::{Baseline, Text},
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
@@ -73,7 +72,7 @@ impl<'a> Display<'a> {
         let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).expect("infallible");
         let interface = SPIInterface::new(spi_dev, dc);
 
-        let display = Ili9341::new(
+        let mut display = Ili9341::new(
             interface,
             reset,
             &mut Delay::new(),
@@ -82,6 +81,7 @@ impl<'a> Display<'a> {
         )?;
 
         let _backlight = Output::new(peripherals.gpio21, Level::High, OutputConfig::default());
+        display.clear(Rgb565::BLACK)?;
 
         Ok(Self { display })
     }
@@ -92,16 +92,6 @@ impl<'a> Display<'a> {
         Text::with_baseline(message, Point::default(), style, Baseline::Top)
             .draw(&mut self.display)?;
         Ok(())
-    }
-
-    pub fn draw(&mut self) {
-        self.display.clear(Rgb565::BLUE).unwrap();
-        self.display
-            .fill_solid(
-                &Rectangle::new(Point::new(30, 20), Size::new(50, 50)),
-                Rgb565::RED,
-            )
-            .unwrap();
     }
 }
 

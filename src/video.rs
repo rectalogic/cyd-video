@@ -60,16 +60,18 @@ impl Video {
     {
         let delay = Delay::new();
         let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
+        let mut start: Option<Instant> = None;
         loop {
-            let start = Instant::now();
             let buffer = &mut self.buffer
                 [..((self.width * self.height) + (self.width * self.height) / 2) as usize];
             reader.read_exact(buffer)?;
             let pixels = Pixels::new(buffer, Size::new(self.width, self.height));
             let image = Image::with_center(&pixels, CENTER);
+            if let Some(start) = start {
+                delay.delay(frame_duration - start.elapsed());
+            }
+            start = Some(Instant::now());
             image.draw(display).map_err(Error::DrawError)?;
-            //XXX seems wrong, reading the next frame will eat up time
-            delay.delay(frame_duration - start.elapsed());
         }
     }
 }
