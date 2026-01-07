@@ -31,7 +31,7 @@ fn main() -> ! {
 
     let mut delay = Delay::new();
 
-    let mut display = cyd_video::Display::new(cyd_video::DisplayPeripherals {
+    let mut display = cyd_video::display::Display::new(cyd_video::display::Peripherals {
         spi2: peripherals.SPI2,
         gpio2: peripherals.GPIO2,
         gpio4: peripherals.GPIO4,
@@ -42,6 +42,28 @@ fn main() -> ! {
         gpio21: peripherals.GPIO21,
     })
     .unwrap();
+
+    let mut sdcard = cyd_video::sdcard::SdCard::new(cyd_video::sdcard::Peripherals {
+        spi3: peripherals.SPI3,
+        gpio5: peripherals.GPIO5,
+        gpio18: peripherals.GPIO18,
+        gpio19: peripherals.GPIO19,
+        gpio23: peripherals.GPIO23,
+    })
+    .unwrap();
+    sdcard
+        .read_file("test.txt", |file| {
+            while !file.is_eof() {
+                let mut buffer = [0u8; 32];
+                if let Ok(n) = file.read(&mut buffer) {
+                    for b in &buffer[..n] {
+                        info!("{}", *b as char);
+                    }
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
 
     display.draw();
 

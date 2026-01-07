@@ -8,7 +8,6 @@ use embedded_graphics::{
     draw_target::DrawTarget, pixelcolor::Rgb565, prelude::*, primitives::Rectangle,
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
-use esp_backtrace as _;
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -28,12 +27,12 @@ type InternalDisplay<'a> = Ili9341<
 >;
 
 #[derive(Debug)]
-pub enum DisplayError {
+pub enum InitError {
     ConfigError(ConfigError),
     DisplayError(InterfaceDisplayError),
 }
 
-pub struct DisplayPeripherals {
+pub struct Peripherals {
     pub spi2: SPI2<'static>,
     pub gpio2: GPIO2<'static>,
     pub gpio4: GPIO4<'static>,
@@ -49,7 +48,7 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: DisplayPeripherals) -> Result<Self, DisplayError> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, InitError> {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -101,14 +100,14 @@ impl<'a> Deref for Display<'a> {
     }
 }
 
-impl From<ConfigError> for DisplayError {
+impl From<ConfigError> for InitError {
     fn from(value: ConfigError) -> Self {
-        DisplayError::ConfigError(value)
+        InitError::ConfigError(value)
     }
 }
 
-impl From<InterfaceDisplayError> for DisplayError {
+impl From<InterfaceDisplayError> for InitError {
     fn from(value: InterfaceDisplayError) -> Self {
-        DisplayError::DisplayError(value)
+        InitError::DisplayError(value)
     }
 }
