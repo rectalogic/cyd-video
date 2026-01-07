@@ -93,12 +93,6 @@ impl From<ConfigError> for Error {
     }
 }
 
-// impl From<SdCardError> for Error {
-//     fn from(value: SdCardError) -> Self {
-//         Error::SdCardError(value)
-//     }
-// }
-
 impl From<embedded_sdmmc::Error<SdCardError>> for Error {
     fn from(value: embedded_sdmmc::Error<SdCardError>) -> Self {
         Error::SdCardError(value)
