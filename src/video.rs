@@ -58,7 +58,10 @@ impl Video {
             let pixels = Pixels::new(slice, size);
             let image = Image::with_center(&pixels, CENTER);
             if let Some(start) = start {
-                delay.delay(frame_duration - start.elapsed());
+                let elapsed = start.elapsed();
+                if frame_duration > elapsed {
+                    delay.delay(frame_duration - elapsed);
+                }
             }
             start = Some(Instant::now());
             image.draw(display).map_err(Error::DisplayError)?;
