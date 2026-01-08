@@ -1,5 +1,6 @@
 use crate::error::Error;
 use core::convert::Infallible;
+use embedded_hal::spi::SpiBus;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager};
 use esp_hal::{
@@ -30,26 +31,31 @@ pub struct SdCard {
 
 impl SdCard {
     pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
-        let spi = Spi::new(
+        let mut spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
         )?
         .with_sck(peripherals.gpio18)
         .with_mosi(peripherals.gpio23)
         .with_miso(peripherals.gpio19);
+
+        // Send 74+ clock cycles (10 bytes = 80 cycles)
+        // CS doesn't need to exist yet - it just needs to NOT be asserted
+        let mut dummy = [0xFF; 10];
+        SpiBus::transfer_in_place(&mut spi, &mut dummy)?;
+
         let cs = Output::new(peripherals.gpio5, Level::High, OutputConfig::default());
         let spi_dev = ExclusiveDevice::new(spi, cs, Delay::new()).unwrap();
         let sdcard = embedded_sdmmc::SdCard::new(spi_dev, Delay::new());
 
         // Force initialization
         let _ = sdcard.num_bytes();
+
         // Reconfigure frequency
         sdcard.spi(|spi| {
             spi.bus_mut()
                 .apply_config(&SpiConfig::default().with_frequency(Rate::from_mhz(25)))
         })?;
-        // Force initialization
-        let _ = sdcard.num_bytes();
 
         let volume_manager = VolumeManager::new(sdcard, DummyTimesource);
 

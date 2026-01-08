@@ -10,6 +10,7 @@ where
     D: fmt::Debug,
 {
     SpiConfigError(ConfigError),
+    SpiError(esp_hal::spi::Error),
     DisplayError(DisplayError),
     SdCardError(embedded_sdmmc::Error<SdCardError>),
     ReadError(D),
@@ -49,5 +50,14 @@ where
 {
     fn from(value: ReadExactError<D>) -> Self {
         Error::ReadExactError(value)
+    }
+}
+
+impl<D> From<esp_hal::spi::Error> for Error<D>
+where
+    D: fmt::Debug,
+{
+    fn from(value: esp_hal::spi::Error) -> Self {
+        Error::SpiError(value)
     }
 }
