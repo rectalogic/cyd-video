@@ -61,6 +61,8 @@ impl Video {
                 let elapsed = start.elapsed();
                 if frame_duration > elapsed {
                     delay.delay(frame_duration - elapsed);
+                } else {
+                    log::info!("lag {:?}", elapsed - frame_duration);
                 }
             }
             start = Some(Instant::now());
