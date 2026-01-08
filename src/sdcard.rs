@@ -7,10 +7,7 @@ use esp_hal::{
     delay::Delay,
     gpio::{Level, Output, OutputConfig},
     peripherals::{GPIO5, GPIO18, GPIO19, GPIO23, SPI3},
-    spi::{
-        Mode,
-        master::{Config as SpiConfig, Spi},
-    },
+    spi::master::{Config as SpiConfig, Spi},
     time::Rate,
 };
 
@@ -35,9 +32,7 @@ impl SdCard {
     pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
         let spi = Spi::new(
             peripherals.spi3,
-            SpiConfig::default()
-                .with_frequency(Rate::from_khz(400))
-                .with_mode(Mode::_0),
+            SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
         )?
         .with_sck(peripherals.gpio18)
         .with_mosi(peripherals.gpio23)
@@ -45,7 +40,19 @@ impl SdCard {
         let cs = Output::new(peripherals.gpio5, Level::High, OutputConfig::default());
         let spi_dev = ExclusiveDevice::new(spi, cs, Delay::new()).unwrap();
         let sdcard = embedded_sdmmc::SdCard::new(spi_dev, Delay::new());
+
+        // Force initialization
+        let _ = sdcard.num_bytes();
+        // Reconfigure frequency
+        sdcard.spi(|spi| {
+            spi.bus_mut()
+                .apply_config(&SpiConfig::default().with_frequency(Rate::from_mhz(25)))
+        })?;
+        // Force initialization
+        let _ = sdcard.num_bytes();
+
         let volume_manager = VolumeManager::new(sdcard, DummyTimesource);
+
         Ok(Self { volume_manager })
     }
 
