@@ -6,7 +6,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::Rectangle,
 };
-use embedded_io::{Read, ReadExactError};
+use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
 use esp_hal::{
     delay::Delay,
     time::{Duration, Instant},
@@ -37,17 +37,27 @@ impl Video {
 
     pub fn play<R, D>(&mut self, reader: &mut R, display: &mut D) -> Result<(), Error<R::Error>>
     where
-        R: Read,
+        R: Read + Seek,
         D: DrawTarget<Color = Rgb565, Error = DisplayError>,
     {
         let delay = Delay::new();
         let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
         let mut start: Option<Instant> = None;
+        let buffer = &mut self.buffer
+            [..((self.width * self.height) + (self.width * self.height) / 2) as usize];
+        let size = Size::new(self.width, self.height);
         loop {
-            let buffer = &mut self.buffer
-                [..((self.width * self.height) + (self.width * self.height) / 2) as usize];
-            reader.read_exact(buffer)?;
-            let pixels = Pixels::new(buffer, Size::new(self.width, self.height));
+            match reader.read_exact(buffer) {
+                Ok(_) => {}
+                Err(ReadExactError::UnexpectedEof) => {
+                    reader
+                        .seek(SeekFrom::Start(HEADER_SIZE as u64))
+                        .map_err(Error::ReadError)?;
+                    reader.read_exact(buffer)?;
+                }
+                Err(ReadExactError::Other(e)) => return Err(Error::ReadError(e)),
+            }
+            let pixels = Pixels::new(buffer, size);
             let image = Image::with_center(&pixels, CENTER);
             if let Some(start) = start {
                 delay.delay(frame_duration - start.elapsed());

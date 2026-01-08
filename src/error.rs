@@ -12,7 +12,8 @@ where
     SpiConfigError(ConfigError),
     DisplayError(DisplayError),
     SdCardError(embedded_sdmmc::Error<SdCardError>),
-    ReadError(ReadExactError<D>),
+    ReadError(D),
+    ReadExactError(ReadExactError<D>),
 }
 
 impl<D> From<ConfigError> for Error<D>
@@ -47,6 +48,6 @@ where
     D: fmt::Debug,
 {
     fn from(value: ReadExactError<D>) -> Self {
-        Error::ReadError(value)
+        Error::ReadExactError(value)
     }
 }
