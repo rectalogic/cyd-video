@@ -17,8 +17,6 @@ const MAX_HEIGHT: usize = 240;
 const CENTER: Point = Point::new((MAX_WIDTH / 2) as i32, (MAX_HEIGHT / 2) as i32);
 
 pub struct Video {
-    // yuv420 320x240
-    buffer: [u8; (MAX_WIDTH * MAX_HEIGHT) + (MAX_WIDTH * MAX_HEIGHT) / 2],
     width: u32,
     height: u32,
     fps: u8,
@@ -28,7 +26,6 @@ impl Video {
     pub fn new<R: Read>(reader: &mut R) -> Result<Self, ReadExactError<R::Error>> {
         let (width, height, fps) = read_header(reader)?;
         Ok(Self {
-            buffer: [0u8; _],
             width: width as u32,
             height: height as u32,
             fps,
@@ -43,21 +40,22 @@ impl Video {
         let delay = Delay::new();
         let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
         let mut start: Option<Instant> = None;
-        let buffer = &mut self.buffer
-            [..((self.width * self.height) + (self.width * self.height) / 2) as usize];
+        let mut buffer = [0u8; (MAX_WIDTH * MAX_HEIGHT) + (MAX_WIDTH * MAX_HEIGHT) / 2];
+        let slice =
+            &mut buffer[..((self.width * self.height) + (self.width * self.height) / 2) as usize];
         let size = Size::new(self.width, self.height);
         loop {
-            match reader.read_exact(buffer) {
+            match reader.read_exact(slice) {
                 Ok(_) => {}
                 Err(ReadExactError::UnexpectedEof) => {
                     reader
                         .seek(SeekFrom::Start(HEADER_SIZE as u64))
                         .map_err(Error::ReadError)?;
-                    reader.read_exact(buffer)?;
+                    reader.read_exact(slice)?;
                 }
                 Err(ReadExactError::Other(e)) => return Err(Error::ReadError(e)),
             }
-            let pixels = Pixels::new(buffer, size);
+            let pixels = Pixels::new(slice, size);
             let image = Image::with_center(&pixels, CENTER);
             if let Some(start) = start {
                 delay.delay(frame_duration - start.elapsed());
