@@ -1,8 +1,12 @@
 #![deny(clippy::large_stack_frames)]
 
-use core::ops::{Deref, DerefMut};
+use core::{
+    convert::Infallible,
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
-use display_interface::DisplayError as InterfaceDisplayError;
+use crate::error::Error;
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{
     draw_target::DrawTarget,
@@ -19,7 +23,7 @@ use esp_hal::{
     peripherals::{GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
         Mode as SpiMode,
-        master::{Config as SpiConfig, ConfigError, Spi},
+        master::{Config as SpiConfig, Spi},
     },
     time::Rate,
 };
@@ -29,12 +33,6 @@ type InternalDisplay<'a> = Ili9341<
     SPIInterface<ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
     Output<'a>,
 >;
-
-#[derive(Debug)]
-pub enum Error {
-    ConfigError(ConfigError),
-    DisplayError(InterfaceDisplayError),
-}
 
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
@@ -52,7 +50,7 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -86,12 +84,20 @@ impl<'a> Display<'a> {
         Ok(Self { display })
     }
 
-    pub fn message(&mut self, message: &str) -> Result<(), InterfaceDisplayError> {
-        self.display.clear(Rgb565::BLACK)?;
+    pub fn message(&mut self, args: fmt::Arguments) -> ! {
+        let mut buf = [0u8; 256];
+        let message = format_no_std::show(&mut buf, args).unwrap();
+
+        self.display.clear(Rgb565::BLACK).unwrap();
         let style = MonoTextStyle::new(&FONT_6X10, Rgb565::WHITE);
         Text::with_baseline(message, Point::default(), style, Baseline::Top)
-            .draw(&mut self.display)?;
-        Ok(())
+            .draw(&mut self.display)
+            .unwrap();
+
+        let delay = Delay::new();
+        loop {
+            delay.delay_millis(5000);
+        }
     }
 }
 
@@ -106,17 +112,5 @@ impl<'a> Deref for Display<'a> {
 impl<'a> DerefMut for Display<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.display
-    }
-}
-
-impl From<ConfigError> for Error {
-    fn from(value: ConfigError) -> Self {
-        Error::ConfigError(value)
-    }
-}
-
-impl From<InterfaceDisplayError> for Error {
-    fn from(value: InterfaceDisplayError) -> Self {
-        Error::DisplayError(value)
     }
 }

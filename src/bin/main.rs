@@ -7,10 +7,11 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use embedded_hal::delay::DelayNs;
+use core::ops::DerefMut;
+use cyd_video::error::Error;
+use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
-use esp_hal::{clock::CpuClock, delay::Delay};
-use log::info;
+use esp_hal::clock::CpuClock;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -29,8 +30,6 @@ fn main() -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    let mut delay = Delay::new();
-
     let mut display = cyd_video::display::Display::new(cyd_video::display::Peripherals {
         spi2: peripherals.SPI2,
         gpio2: peripherals.GPIO2,
@@ -43,34 +42,31 @@ fn main() -> ! {
     })
     .unwrap();
 
-    let mut sdcard = cyd_video::sdcard::SdCard::new(cyd_video::sdcard::Peripherals {
+    let mut sdcard = match cyd_video::sdcard::SdCard::new(cyd_video::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         gpio5: peripherals.GPIO5,
         gpio18: peripherals.GPIO18,
         gpio19: peripherals.GPIO19,
         gpio23: peripherals.GPIO23,
-    })
-    .unwrap();
-    sdcard
-        .read_file("test.txt", |file| {
-            while !file.is_eof() {
-                let mut buffer = [0u8; 32];
-                if let Ok(n) = file.read(&mut buffer) {
-                    for b in &buffer[..n] {
-                        info!("{}", *b as char);
-                    }
-                }
+    }) {
+        Ok(sdcard) => sdcard,
+        Err(e) => display.message(format_args!("{:?}", e)),
+    };
+    if let Err(e) = sdcard.read_file(
+        "video.yuv",
+        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
+            match cyd_video::video::Video::new(file) {
+                Ok(mut video) => match video.play(file, display.deref_mut()) {
+                    Err(e) => display.message(format_args!("{:?}", e)),
+                    Ok(_) => unreachable!(),
+                },
+                Err(e) => display.message(format_args!("{:?}", e)),
             }
-            Ok(())
-        })
-        .unwrap();
-
-    display.draw();
-
-    loop {
-        info!("Hello world!");
-        delay.delay_ms(1000u32);
+        },
+    ) {
+        display.message(format_args!("Load video failed: {:?}", e));
     }
 
+    unreachable!();
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v~1.0/examples
 }

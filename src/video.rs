@@ -1,3 +1,5 @@
+use crate::error::Error;
+use display_interface::DisplayError;
 use embedded_graphics::{
     image::{Image, ImageDrawable},
     pixelcolor::Rgb565,
@@ -14,26 +16,6 @@ const MAX_WIDTH: usize = 320;
 const MAX_HEIGHT: usize = 240;
 const CENTER: Point = Point::new((MAX_WIDTH / 2) as i32, (MAX_HEIGHT / 2) as i32);
 
-#[derive(Debug)]
-pub enum Error<R, D>
-where
-    R: Read,
-    D: DrawTarget<Color = Rgb565>,
-{
-    ReadError(ReadExactError<R::Error>),
-    DrawError(D::Error),
-}
-
-impl<R, D> From<ReadExactError<R::Error>> for Error<R, D>
-where
-    R: Read,
-    D: DrawTarget<Color = Rgb565>,
-{
-    fn from(value: ReadExactError<R::Error>) -> Self {
-        Error::ReadError(value)
-    }
-}
-
 pub struct Video {
     // yuv420 320x240
     buffer: [u8; (MAX_WIDTH * MAX_HEIGHT) + (MAX_WIDTH * MAX_HEIGHT) / 2],
@@ -43,8 +25,8 @@ pub struct Video {
 }
 
 impl Video {
-    pub fn new<R: Read>(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
-        let (width, height, fps) = read_header(&mut reader)?;
+    pub fn new<R: Read>(reader: &mut R) -> Result<Self, ReadExactError<R::Error>> {
+        let (width, height, fps) = read_header(reader)?;
         Ok(Self {
             buffer: [0u8; _],
             width: width as u32,
@@ -53,10 +35,10 @@ impl Video {
         })
     }
 
-    pub fn play<R, D>(&mut self, mut reader: R, display: &mut D) -> Result<(), Error<R, D>>
+    pub fn play<R, D>(&mut self, reader: &mut R, display: &mut D) -> Result<(), Error<R::Error>>
     where
         R: Read,
-        D: DrawTarget<Color = Rgb565>,
+        D: DrawTarget<Color = Rgb565, Error = DisplayError>,
     {
         let delay = Delay::new();
         let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
@@ -71,7 +53,7 @@ impl Video {
                 delay.delay(frame_duration - start.elapsed());
             }
             start = Some(Instant::now());
-            image.draw(display).map_err(Error::DrawError)?;
+            image.draw(display).map_err(Error::DisplayError)?;
         }
     }
 }

@@ -1,3 +1,5 @@
+use crate::error::Error;
+use core::convert::Infallible;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager};
 use esp_hal::{
@@ -7,16 +9,10 @@ use esp_hal::{
     peripherals::{GPIO5, GPIO18, GPIO19, GPIO23, SPI3},
     spi::{
         Mode,
-        master::{Config as SpiConfig, ConfigError, Spi},
+        master::{Config as SpiConfig, Spi},
     },
     time::Rate,
 };
-
-#[derive(Debug)]
-pub enum Error {
-    ConfigError(ConfigError),
-    SdCardError(embedded_sdmmc::Error<SdCardError>),
-}
 
 pub struct Peripherals {
     pub spi3: SPI3<'static>,
@@ -36,7 +32,7 @@ pub struct SdCard {
 }
 
 impl SdCard {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
         let spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default()
@@ -53,9 +49,13 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub fn read_file<F, R>(&mut self, filename: &str, f: F) -> Result<R, Error>
+    pub fn read_file<F, R>(
+        &mut self,
+        filename: &str,
+        f: F,
+    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>
     where
-        F: FnOnce(&mut FileType) -> Result<R, Error>,
+        F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let directory = volume.open_root_dir()?;
@@ -84,17 +84,5 @@ impl TimeSource for DummyTimesource {
             minutes: 0,
             seconds: 0,
         }
-    }
-}
-
-impl From<ConfigError> for Error {
-    fn from(value: ConfigError) -> Self {
-        Error::ConfigError(value)
-    }
-}
-
-impl From<embedded_sdmmc::Error<SdCardError>> for Error {
-    fn from(value: embedded_sdmmc::Error<SdCardError>) -> Self {
-        Error::SdCardError(value)
     }
 }
