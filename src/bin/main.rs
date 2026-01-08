@@ -41,7 +41,6 @@ fn main() -> ! {
         gpio21: peripherals.GPIO21,
     })
     .unwrap();
-
     let mut sdcard = match cyd_video::sdcard::SdCard::new(cyd_video::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         gpio5: peripherals.GPIO5,
@@ -50,21 +49,21 @@ fn main() -> ! {
         gpio23: peripherals.GPIO23,
     }) {
         Ok(sdcard) => sdcard,
-        Err(e) => display.message(format_args!("{:?}", e)),
+        Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
     if let Err(e) = sdcard.read_file(
         "video.yuv",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
             match cyd_video::video::Video::new(file) {
                 Ok(mut video) => match video.play(file, display.deref_mut()) {
-                    Err(e) => display.message(format_args!("{:?}", e)),
+                    Err(e) => display.message(format_args!("{e:?}")),
                     Ok(_) => unreachable!(),
                 },
-                Err(e) => display.message(format_args!("{:?}", e)),
+                Err(e) => display.message(format_args!("{e:?}")),
             }
         },
     ) {
-        display.message(format_args!("Load video failed: {:?}", e));
+        display.message(format_args!("Load video failed: {e:?}"));
     }
 
     unreachable!();
