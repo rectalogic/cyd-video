@@ -15,6 +15,7 @@ use esp_hal::{
 const MAX_WIDTH: usize = 320;
 const MAX_HEIGHT: usize = 240;
 const CENTER: Point = Point::new((MAX_WIDTH / 2) as i32, (MAX_HEIGHT / 2) as i32);
+pub const HEADER_SIZE: usize = 5;
 
 pub struct Video {
     width: u32,
@@ -24,12 +25,28 @@ pub struct Video {
 
 impl Video {
     pub fn new<R: Read>(reader: &mut R) -> Result<Self, ReadExactError<R::Error>> {
-        let (width, height, fps) = read_header(reader)?;
+        let mut header = [0u8; HEADER_SIZE];
+        reader.read_exact(&mut header)?;
+        let (width, height, fps) = Self::parse_header(&header);
         Ok(Self {
             width: width as u32,
             height: height as u32,
             fps,
         })
+    }
+
+    pub fn parse_header(header: &[u8; HEADER_SIZE]) -> (u16, u16, u8) {
+        let width = u16::from_le_bytes([header[0], header[1]]);
+        let height = u16::from_le_bytes([header[2], header[3]]);
+        let fps = header[4];
+
+        (width, height, fps)
+    }
+
+    pub fn encode_header(header: &mut [u8; HEADER_SIZE], width: u16, height: u16, fps: u8) {
+        header[..2].copy_from_slice(&width.to_le_bytes());
+        header[2..4].copy_from_slice(&height.to_le_bytes());
+        header[4] = fps;
     }
 
     pub fn play<R, D>(&mut self, reader: &mut R, display: &mut D) -> Result<(), Error<R::Error>>
@@ -138,17 +155,4 @@ impl OriginDimensions for Pixels<'_> {
     fn size(&self) -> Size {
         self.size
     }
-}
-
-pub const HEADER_SIZE: usize = 5;
-
-pub fn read_header<R: Read>(mut reader: R) -> Result<(u16, u16, u8), ReadExactError<R::Error>> {
-    let mut buf = [0u8; HEADER_SIZE];
-    reader.read_exact(&mut buf)?;
-
-    let width = u16::from_le_bytes([buf[0], buf[1]]);
-    let height = u16::from_le_bytes([buf[2], buf[3]]);
-    let fps = buf[4];
-
-    Ok((width, height, fps))
 }
