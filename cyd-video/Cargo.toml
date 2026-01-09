@@ -32,6 +32,7 @@ display-interface = "0.5.0"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b" }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
+cyd-format = { path = "../encoder/cyd-format" }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

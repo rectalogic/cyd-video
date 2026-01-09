@@ -99,9 +99,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyd-format"
+version = "0.1.0"
+
+[[package]]
 name = "cyd-video"
 version = "0.1.0"
 dependencies = [
+ "cyd-format",
  "display-interface",
  "display-interface-spi",
  "embedded-graphics",

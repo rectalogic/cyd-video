@@ -1,0 +1,17 @@
+[package]
+name = "cyd-encoder"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "encoder"
+path = "./src/encoder.rs"
+
+[[bin]]
+name = "player"
+path = "./src/player.rs"
+
+[dependencies]
+cyd-format = { path = "../cyd-format" }
+argh = "0.1.13"
+regex = "1.12.2"
