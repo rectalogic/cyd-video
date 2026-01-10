@@ -33,6 +33,7 @@ display-interface = "0.5.0"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b" }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
+zune-jpeg = { version = "0.5.8", git = "https://github.com/etemesi254/zune-image.git", rev = "4063a17", default-features = false }
 cyd-format = { path = "../encoder/cyd-format" }
 
 [lints.clippy]

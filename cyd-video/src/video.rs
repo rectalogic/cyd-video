@@ -1,4 +1,5 @@
 use crate::error::Error;
+use cyd_format::{HEADER_SIZE, parse_header};
 use display_interface::DisplayError;
 use embedded_graphics::{
     image::{Image, ImageDrawable},
@@ -11,7 +12,8 @@ use esp_hal::{
     delay::Delay,
     time::{Duration, Instant},
 };
-use cyd_format::{HEADER_SIZE, parse_header};
+
+mod mjpeg;
 
 const MAX_WIDTH: usize = 320;
 const MAX_HEIGHT: usize = 240;

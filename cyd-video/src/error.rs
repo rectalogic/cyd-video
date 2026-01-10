@@ -3,6 +3,7 @@ use display_interface::DisplayError;
 use embedded_io::ReadExactError;
 use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
+use zune_jpeg::errors::DecodeErrors;
 
 #[derive(Debug)]
 pub enum Error<D>
@@ -15,6 +16,7 @@ where
     SdCardError(embedded_sdmmc::Error<SdCardError>),
     ReadError(D),
     ReadExactError(ReadExactError<D>),
+    DecodeErrors(DecodeErrors),
 }
 
 impl<D> From<ConfigError> for Error<D>
@@ -59,5 +61,14 @@ where
 {
     fn from(value: esp_hal::spi::Error) -> Self {
         Error::SpiError(value)
+    }
+}
+
+impl<D> From<DecodeErrors> for Error<D>
+where
+    D: fmt::Debug,
+{
+    fn from(value: DecodeErrors) -> Self {
+        Error::DecodeErrors(value)
     }
 }
