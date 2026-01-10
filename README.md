@@ -12,3 +12,18 @@ $ espup install --targets esp32
 Configure environment variables, see the
 [documentation](https://github.com/esp-rs/espup?tab=readme-ov-file#environment-variables-setup).
 e.g. `. ~/export-esp.sh`.
+
+Build and run on esp32:
+
+```sh-session
+$ cd cyd-video
+$ cargo run
+```
+
+Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
+
+```sh-session
+$ cd encoder
+$ cargo run --bin encoder -- --fps 25 <input.mp4> video.yuv
+$ cargo run --bin player video.yuv
+```

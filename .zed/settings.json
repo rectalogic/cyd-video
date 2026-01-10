@@ -1,9 +1,0 @@
-{
-  "lsp": {
-    "rust-analyzer": {
-      "initialization_options": {
-        "linkedProjects": ["./cyd-video/Cargo.toml", "./encoder/Cargo.toml"],
-      },
-    },
-  },
-}
