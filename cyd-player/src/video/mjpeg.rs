@@ -16,7 +16,7 @@ use zune_jpeg::{
 extern crate alloc;
 
 pub struct MjpegDecoder<R: Read + Seek> {
-    reader: ZBufferedReader<R, 1024>,
+    reader: ZBufferedReader<R, 8192>,
     options: DecoderOptions,
 }
 
@@ -27,7 +27,7 @@ impl<R: Read + Seek> MjpegDecoder<R> {
             .set_max_height(MAX_HEIGHT)
             .jpeg_set_out_colorspace(ColorSpace::RGB);
         Self {
-            reader: ZBufferedReader::<_, 1024>::new(reader),
+            reader: ZBufferedReader::<_, 8192>::new(reader),
             options,
         }
     }
@@ -54,7 +54,7 @@ impl<R: Read + Seek> MjpegDecoder<R> {
     }
 }
 
-struct ZBufferedReader<R, const BUFFER_SIZE: usize = 1024> {
+struct ZBufferedReader<R, const BUFFER_SIZE: usize = 8192> {
     inner: R,
     buffer: [u8; BUFFER_SIZE],
     pos: usize,
