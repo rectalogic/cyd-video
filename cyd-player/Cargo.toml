@@ -8,10 +8,20 @@ version      = "0.1.0"
 name = "cyd-video"
 path = "./src/bin/main.rs"
 
-[dependencies]
-esp-hal = { version = "~1.0", features = ["esp32", "log-04", "unstable"] }
+[features]
+default = ["log"]
+log = [
+    "zune-jpeg/log",
+    "esp-hal/log-04",
+    "esp-bootloader-esp-idf/log-04",
+    "esp-println/log-04",
+    "embedded-sdmmc/log"
+]
 
-esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32", "log-04"] }
+[dependencies]
+esp-hal = { version = "~1.0", features = ["esp32", "unstable"] }
+
+esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32"] }
 esp-alloc = "0.9.0"
 log = "0.4.27"
 
@@ -20,7 +30,7 @@ esp-backtrace = { version = "0.18.1", features = [
   "panic-handler",
   "println",
 ] }
-esp-println = { version = "0.16.1", features = ["esp32", "log-04"] }
+esp-println = { version = "0.16.1", features = ["esp32"] }
 
 embedded-hal-bus = "0.3.0"
 embedded-hal = "1.0.0"
@@ -30,7 +40,7 @@ embedded-graphics = "0.8.1"
 display-interface = "0.5.0"
 # XXX Custom embedded-sdmmc to avoid infinite recursion
 # https://github.com/rust-embedded-community/embedded-sdmmc-rs/commit/a707d3094ea7c54e38d4e0e278e1a638bda62ba1
-embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b" }
+embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b", default-features = false }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 zune-jpeg = { version = "0.5.8", git = "https://github.com/etemesi254/zune-image.git", rev = "4063a17", default-features = false }

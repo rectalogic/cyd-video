@@ -54,7 +54,7 @@ impl Video {
                 if frame_duration > elapsed {
                     delay.delay(frame_duration - elapsed);
                 } else {
-                    log::info!("lag {:?}", elapsed - frame_duration);
+                    log::warn!("lag {:?}", elapsed - frame_duration);
                 }
             }
             start = Some(Instant::now());

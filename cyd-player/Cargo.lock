@@ -1449,6 +1449,9 @@ dependencies = [
 name = "zune-core"
 version = "0.5.0"
 source = "git+https://github.com/etemesi254/zune-image.git?rev=4063a17#4063a17c5528c3d8fed987d6dc2f1b1fb080acb1"
+dependencies = [
+ "log",
+]
 
 [[package]]
 name = "zune-jpeg"
