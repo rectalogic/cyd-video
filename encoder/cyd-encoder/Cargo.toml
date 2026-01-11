@@ -14,4 +14,3 @@ path = "./src/player.rs"
 [dependencies]
 cyd-format = { path = "../cyd-format" }
 argh = "0.1.13"
-regex = "1.12.2"

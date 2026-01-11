@@ -56,7 +56,7 @@ fn main() -> ! {
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
     if let Err(e) = sdcard.read_file(
-        "video.yuv",
+        "video.cyd",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
             match cyd_video::video::Video::new(file) {
                 Ok(mut video) => match video.play(file, display.deref_mut()) {

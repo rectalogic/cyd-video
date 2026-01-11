@@ -1,9 +1,8 @@
-use core::convert::Infallible;
-
 use crate::error::Error;
 
 use super::{MAX_HEIGHT, MAX_WIDTH};
 use alloc::vec::Vec;
+use embedded_graphics::{image::ImageRaw, pixelcolor::Rgb888};
 use embedded_io::{Read, Seek, SeekFrom};
 use zune_jpeg::{
     JpegDecoder,
@@ -17,7 +16,7 @@ use zune_jpeg::{
 extern crate alloc;
 
 pub struct MjpegDecoder<R: Read + Seek> {
-    reader: ZBufferedReader<R, 8192>,
+    reader: ZBufferedReader<R, 1024>,
     options: DecoderOptions,
     buffer: [u8; MAX_WIDTH * MAX_HEIGHT * 3],
 }
@@ -29,23 +28,32 @@ impl<R: Read + Seek> MjpegDecoder<R> {
             .set_max_height(MAX_HEIGHT)
             .jpeg_set_out_colorspace(ColorSpace::RGB);
         Self {
-            reader: ZBufferedReader::<_, 8192>::new(reader),
+            reader: ZBufferedReader::<_, 1024>::new(reader),
             options,
             buffer: [0u8; MAX_WIDTH * MAX_HEIGHT * 3],
         }
     }
 
-    pub fn decode(&mut self) -> Result<&[u8], Error<Infallible>> {
+    pub fn decode<'a>(&'a mut self) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error>> {
         let mut decoder = JpegDecoder::new_with_options(&mut self.reader, self.options);
         decoder.decode_into(&mut self.buffer)?;
         let info = decoder
             .info()
             .ok_or(DecodeErrors::FormatStatic("no decoder info"))?;
-        Ok(&self.buffer[..(info.width * info.height * 3) as usize])
+        Ok(ImageRaw::<Rgb888>::new(
+            &self.buffer[..(info.width * info.height * 3) as usize],
+            info.width as u32,
+        ))
+    }
+
+    pub fn seek(&mut self, offset: u64) -> Result<u64, Error<R::Error>> {
+        self.reader
+            .z_seek(ZSeekFrom::Start(offset))
+            .map_err(|e| Error::DecodeErrors(DecodeErrors::IoErrors(e)))
     }
 }
 
-struct ZBufferedReader<R, const BUFFER_SIZE: usize = 8192> {
+struct ZBufferedReader<R, const BUFFER_SIZE: usize = 1024> {
     inner: R,
     buffer: [u8; BUFFER_SIZE],
     pos: usize,
