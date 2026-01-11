@@ -1,5 +1,5 @@
 use crate::error::Error;
-use cyd_encoder::{parse_header, HEADER_SIZE};
+use cyd_encoder::{HEADER_SIZE, parse_header};
 use display_interface::DisplayError;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, ReadExactError, Seek};
@@ -37,8 +37,9 @@ impl Video {
         let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
         let mut start: Option<Instant> = None;
         let mut decoder = MjpegDecoder::new(reader);
+        let mut buffer = [0u8; MAX_WIDTH * MAX_HEIGHT * 3];
         loop {
-            let pixels = match decoder.decode() {
+            let pixels = match decoder.decode_into(&mut buffer) {
                 Ok(pixels) => pixels,
                 Err(Error::DecodeErrors(DecodeErrors::ExhaustedData)) => {
                     // Loop video

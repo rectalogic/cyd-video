@@ -18,30 +18,31 @@ extern crate alloc;
 pub struct MjpegDecoder<R: Read + Seek> {
     reader: ZBufferedReader<R, 1024>,
     options: DecoderOptions,
-    buffer: [u8; MAX_WIDTH * MAX_HEIGHT * 3],
 }
 
 impl<R: Read + Seek> MjpegDecoder<R> {
     pub fn new(reader: R) -> Self {
-        let options = DecoderOptions::new_fast()
+        let options = DecoderOptions::new_cmd()
             .set_max_width(MAX_WIDTH)
             .set_max_height(MAX_HEIGHT)
             .jpeg_set_out_colorspace(ColorSpace::RGB);
         Self {
             reader: ZBufferedReader::<_, 1024>::new(reader),
             options,
-            buffer: [0u8; MAX_WIDTH * MAX_HEIGHT * 3],
         }
     }
 
-    pub fn decode<'a>(&'a mut self) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error>> {
+    pub fn decode_into<'a>(
+        &mut self,
+        buffer: &'a mut [u8],
+    ) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error>> {
         let mut decoder = JpegDecoder::new_with_options(&mut self.reader, self.options);
-        decoder.decode_into(&mut self.buffer)?;
+        decoder.decode_into(buffer)?;
         let info = decoder
             .info()
             .ok_or(DecodeErrors::FormatStatic("no decoder info"))?;
         Ok(ImageRaw::<Rgb888>::new(
-            &self.buffer[..(info.width * info.height * 3) as usize],
+            &buffer[..(info.width * info.height * 3) as usize],
             info.width as u32,
         ))
     }
