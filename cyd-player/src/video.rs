@@ -1,5 +1,5 @@
 use crate::error::Error;
-use cyd_format::{HEADER_SIZE, parse_header};
+use cyd_encoder::{parse_header, HEADER_SIZE};
 use display_interface::DisplayError;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, ReadExactError, Seek};

@@ -39,12 +39,7 @@ name = "cyd-encoder"
 version = "0.1.0"
 dependencies = [
  "argh",
- "cyd-format",
 ]
-
-[[package]]
-name = "cyd-format"
-version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"

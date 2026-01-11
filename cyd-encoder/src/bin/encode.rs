@@ -1,7 +1,7 @@
-use cyd_format::{HEADER_SIZE, encode_header};
+use cyd_encoder::{encode_header, HEADER_SIZE};
 use std::{
     error::Error,
-    fs::{File, rename},
+    fs::{rename, File},
     io::{self, Write},
     path::Path,
     process::Command,

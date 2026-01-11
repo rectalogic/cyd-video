@@ -1,0 +1,21 @@
+[package]
+name = "cyd-encoder"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["std"]
+std = ["dep:argh"]
+
+[[bin]]
+name = "encode"
+path = "./src/bin/encode.rs"
+required-features = ["std"]
+
+[[bin]]
+name = "preview"
+path = "./src/bin/preview.rs"
+required-features = ["std"]
+
+[dependencies]
+argh = { version = "0.1.13", optional = true }

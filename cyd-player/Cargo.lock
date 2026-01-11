@@ -117,14 +117,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyd-format"
+name = "cyd-encoder"
 version = "0.1.0"
 
 [[package]]
-name = "cyd-video"
+name = "cyd-player"
 version = "0.1.0"
 dependencies = [
- "cyd-format",
+ "cyd-encoder",
  "display-interface",
  "display-interface-spi",
  "embedded-graphics",

@@ -1,4 +1,4 @@
-use cyd_format::{HEADER_SIZE, parse_header};
+use cyd_encoder::{parse_header, HEADER_SIZE};
 use std::{error::Error, fs::File, io::Read, process::Command};
 
 #[derive(argh::FromArgs)]

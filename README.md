@@ -24,6 +24,6 @@ Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
 
 ```sh-session
 $ cd encoder
-$ cargo run --bin encoder -- --fps 25 <input.mp4> video.yuv
-$ cargo run --bin player video.yuv
+$ cargo encode --fps 25 <input.mp4> video.cyd
+$ cargo preview video.cyd
 ```

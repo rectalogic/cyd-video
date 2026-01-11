@@ -8,7 +8,7 @@
 #![deny(clippy::large_stack_frames)]
 
 use core::ops::DerefMut;
-use cyd_video::error::Error;
+use cyd_player::error::Error;
 use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
@@ -34,7 +34,7 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
-    let mut display = cyd_video::display::Display::new(cyd_video::display::Peripherals {
+    let mut display = cyd_player::display::Display::new(cyd_player::display::Peripherals {
         spi2: peripherals.SPI2,
         gpio2: peripherals.GPIO2,
         gpio4: peripherals.GPIO4,
@@ -45,7 +45,7 @@ fn main() -> ! {
         gpio21: peripherals.GPIO21,
     })
     .unwrap();
-    let mut sdcard = match cyd_video::sdcard::SdCard::new(cyd_video::sdcard::Peripherals {
+    let mut sdcard = match cyd_player::sdcard::SdCard::new(cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         gpio5: peripherals.GPIO5,
         gpio18: peripherals.GPIO18,
@@ -58,7 +58,7 @@ fn main() -> ! {
     if let Err(e) = sdcard.read_file(
         "video.cyd",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
-            match cyd_video::video::Video::new(file) {
+            match cyd_player::video::Video::new(file) {
                 Ok(mut video) => match video.play(file, display.deref_mut()) {
                     Err(e) => display.message(format_args!("{e:?}")),
                     Ok(_) => unreachable!(),
