@@ -1,9 +1,15 @@
-use crate::error::Error;
+use crate::{error::Error, video::decoder::Decoder};
 
-use super::{MAX_HEIGHT, MAX_WIDTH};
 use alloc::vec::Vec;
-use embedded_graphics::{image::ImageRaw, pixelcolor::Rgb888};
-use embedded_io::{Read, Seek, SeekFrom};
+use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
+use display_interface::DisplayError;
+use embedded_graphics::{
+    Drawable,
+    image::{Image, ImageRaw},
+    pixelcolor::{Rgb565, Rgb888},
+    prelude::{DrawTarget, DrawTargetExt},
+};
+use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
 use zune_jpeg::{
     JpegDecoder,
     errors::DecodeErrors,
@@ -15,30 +21,62 @@ use zune_jpeg::{
 };
 extern crate alloc;
 
-pub struct MjpegDecoder<R: Read + Seek> {
+pub struct MjpegDecoder<R>
+where
+    R: Read + Seek,
+{
+    header: MjpegHeader,
     reader: ZBufferedReader<R, 8192>,
     options: DecoderOptions,
 }
 
-impl<R: Read + Seek> MjpegDecoder<R> {
-    pub fn new(reader: R) -> Self {
+const DECODE_SIZE: usize = MjpegHeader::MAX_WIDTH * MjpegHeader::MAX_HEIGHT * 3;
+
+impl<R, D> Decoder<R, D, 1, MjpegHeader, DECODE_SIZE> for MjpegDecoder<R>
+where
+    R: Read + Seek,
+    D: DrawTarget<Color = Rgb565, Error = DisplayError>,
+{
+    type ImageDrawable<'a>
+        = ImageRaw<'a, Rgb888>
+    where
+        Self: 'a;
+
+    fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
+        let mut buffer = [0u8; 1];
+        reader.read_exact(&mut buffer)?;
+        let header = MjpegHeader::parse(&buffer);
         let options = DecoderOptions::new_cmd()
-            .set_max_width(MAX_WIDTH)
-            .set_max_height(MAX_HEIGHT)
+            .set_max_width(MjpegHeader::MAX_WIDTH)
+            .set_max_height(MjpegHeader::MAX_HEIGHT)
             .set_strict_mode(false)
             .jpeg_set_out_colorspace(ColorSpace::RGB);
-        Self {
+        Ok(Self {
+            header,
             reader: ZBufferedReader::<_, 8192>::new(reader),
             options,
-        }
+        })
     }
 
-    pub fn decode_into<'a>(
+    fn header(&self) -> &MjpegHeader {
+        &self.header
+    }
+
+    fn decode_into<'a>(
         &mut self,
-        buffer: &'a mut [u8],
+        buffer: &'a mut [u8; DECODE_SIZE],
     ) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error>> {
         let mut decoder = JpegDecoder::new_with_options(&mut self.reader, self.options);
-        decoder.decode_into(buffer)?;
+        match decoder.decode_into(buffer) {
+            Ok(()) => {}
+            Err(DecodeErrors::IoErrors(ZByteIoError::NotEnoughBytes(_, _))) => {
+                self.reader
+                    .z_seek(ZSeekFrom::Start(MjpegHeader::header_size() as u64))
+                    .map_err(|e| Error::DecodeErrors(DecodeErrors::IoErrors(e)))?;
+                return Err(Error::LoopEof);
+            }
+            Err(e) => return Err(Error::DecodeErrors(e)),
+        }
         let info = decoder
             .info()
             .ok_or(DecodeErrors::FormatStatic("no decoder info"))?;
@@ -48,10 +86,15 @@ impl<R: Read + Seek> MjpegDecoder<R> {
         ))
     }
 
-    pub fn seek(&mut self, offset: u64) -> Result<u64, Error<R::Error>> {
-        self.reader
-            .z_seek(ZSeekFrom::Start(offset))
-            .map_err(|e| Error::DecodeErrors(DecodeErrors::IoErrors(e)))
+    fn render<'a>(
+        &'a self,
+        image: Image<Self::ImageDrawable<'a>>,
+        display: &mut D,
+    ) -> Result<(), Error<R::Error>> {
+        image
+            .draw(&mut display.color_converted())
+            .map_err(Error::DisplayError)?;
+        Ok(())
     }
 }
 

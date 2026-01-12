@@ -1,0 +1,36 @@
+use crate::error::Error;
+use cyd_encoder::format::FormatHeader;
+use display_interface::DisplayError;
+use embedded_graphics::{
+    image::{Image, ImageDrawable},
+    pixelcolor::Rgb565,
+    prelude::DrawTarget,
+};
+use embedded_io::{Read, ReadExactError, Seek};
+
+pub trait Decoder<R, D, const HEADER_SIZE: usize, F, const DECODE_SIZE: usize>
+where
+    R: Read + Seek,
+    D: DrawTarget<Color = Rgb565, Error = DisplayError>,
+    F: FormatHeader<HEADER_SIZE>,
+    Self: Sized,
+{
+    type ImageDrawable<'a>: ImageDrawable
+    where
+        Self: 'a;
+
+    fn new(reader: R) -> Result<Self, ReadExactError<R::Error>>;
+
+    fn header(&self) -> &F;
+
+    fn decode_into<'a>(
+        &mut self,
+        buffer: &'a mut [u8; DECODE_SIZE],
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error>>;
+
+    fn render<'a>(
+        &'a self,
+        image: Image<Self::ImageDrawable<'a>>,
+        display: &mut D,
+    ) -> Result<(), Error<R::Error>>;
+}

@@ -65,14 +65,17 @@ fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn prepend_header<P: AsRef<Path>, F: FormatHeader>(path: P, header: F) -> io::Result<()> {
+fn prepend_header<P: AsRef<Path>, const HEADER_SIZE: usize, F: FormatHeader<HEADER_SIZE>>(
+    path: P,
+    header: F,
+) -> io::Result<()> {
     let path = path.as_ref();
     let tmp_path = path.with_extension("tmp");
 
     let mut input = File::open(path)?;
     let mut output = File::create(&tmp_path)?;
 
-    let mut buffer = vec![0u8; F::SIZE];
+    let mut buffer = [0u8; HEADER_SIZE];
     header.encode(&mut buffer);
     output.write_all(&buffer)?;
 

@@ -21,13 +21,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn preview_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
     let mut input = File::open(&args.input)?;
-    let mut buffer = vec![0u8; MjpegHeader::SIZE];
+    let mut buffer = [0u8; 1];
     input.read_exact(&mut buffer)?;
     let header = MjpegHeader::parse(&buffer);
     Command::new("ffplay")
         .args([
             "-skip_initial_bytes",
-            &MjpegHeader::SIZE.to_string(),
+            &MjpegHeader::header_size().to_string(),
             "-framerate",
             &header.fps().to_string(),
             "-f",

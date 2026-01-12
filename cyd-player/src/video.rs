@@ -1,52 +1,38 @@
-use crate::error::Error;
-use cyd_encoder::{HEADER_SIZE, parse_header};
+use core::ops::DerefMut;
+
+use crate::{error::Error, video::decoder::Decoder};
+use cyd_encoder::format::FormatHeader;
 use display_interface::DisplayError;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
-use embedded_io::{Read, ReadExactError, Seek};
+use embedded_io::{Read, Seek};
 use esp_hal::{
     delay::Delay,
     time::{Duration, Instant},
 };
 use mjpeg::MjpegDecoder;
-use zune_jpeg::{errors::DecodeErrors, zune_core::bytestream::ZByteIoError};
 
+mod decoder;
 mod mjpeg;
 
-const MAX_WIDTH: usize = 192;
-const MAX_HEIGHT: usize = 108;
 const CENTER: Point = Point::new(320 / 2, 240 / 2);
 
-pub struct Video {
-    fps: u8,
-}
+pub struct Video;
 
 impl Video {
-    pub fn new<R: Read>(reader: &mut R) -> Result<Self, ReadExactError<R::Error>> {
-        let mut header = [0u8; HEADER_SIZE];
-        reader.read_exact(&mut header)?;
-        let fps = parse_header(&header);
-        Ok(Self { fps })
-    }
-
-    pub fn play<R, D>(&mut self, reader: &mut R, display: &mut D) -> Result<(), Error<R::Error>>
+    pub fn play<R, D>(reader: &mut R, display: &mut D) -> Result<(), Error<R::Error>>
     where
         R: Read + Seek,
         D: DrawTarget<Color = Rgb565, Error = DisplayError>,
     {
         let delay = Delay::new();
-        let frame_duration = Duration::from_micros((1000 * 1000) / self.fps as u64);
         let mut start: Option<Instant> = None;
-        let mut decoder = MjpegDecoder::new(reader);
-        let mut buffer = [0u8; MAX_WIDTH * MAX_HEIGHT * 3];
+        let mut decoder = MjpegDecoder::new(reader)?;
+        let frame_duration = Duration::from_micros((1000 * 1000) / decoder.header().fps() as u64);
+        let mut buffer = [0u8; MjpegDecoder::<R>::DECODE_BUFFER_SIZE];
         loop {
             let pixels = match decoder.decode_into(&mut buffer) {
                 Ok(pixels) => pixels,
-                Err(Error::DecodeErrors(DecodeErrors::IoErrors(ZByteIoError::NotEnoughBytes(
-                    _,
-                    _,
-                )))) => {
-                    // Loop video
-                    decoder.seek(HEADER_SIZE as u64)?;
+                Err(Error::LoopEof) => {
                     continue;
                 }
                 Err(e) => return Err(e),
@@ -61,9 +47,7 @@ impl Video {
                 }
             }
             start = Some(Instant::now());
-            image
-                .draw(&mut display.color_converted())
-                .map_err(Error::DisplayError)?;
+            decoder.render(image, display.deref_mut())?;
         }
     }
 }

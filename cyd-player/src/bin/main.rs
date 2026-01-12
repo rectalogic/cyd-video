@@ -59,12 +59,9 @@ fn main() -> ! {
     if let Err(e) = sdcard.read_file(
         "video.cyd",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
-            match cyd_player::video::Video::new(file) {
-                Ok(mut video) => match video.play(file, display.deref_mut()) {
-                    Err(e) => display.message(format_args!("{e:?}")),
-                    Ok(_) => unreachable!(),
-                },
+            match cyd_player::video::Video::play(file, display.deref_mut()) {
                 Err(e) => display.message(format_args!("{e:?}")),
+                Ok(_) => unreachable!(),
             }
         },
     ) {

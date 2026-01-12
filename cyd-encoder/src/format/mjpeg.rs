@@ -10,18 +10,15 @@ impl MjpegHeader {
     }
 }
 
-impl FormatHeader for MjpegHeader {
-    const SIZE: usize = 1;
+impl FormatHeader<1> for MjpegHeader {
     const MAX_WIDTH: usize = 192;
     const MAX_HEIGHT: usize = 144;
 
-    fn parse(header: &[u8]) -> Self {
-        assert_eq!(header.len(), Self::SIZE);
+    fn parse(header: &[u8; 1]) -> Self {
         Self::new(header[0])
     }
 
-    fn encode(&self, header: &mut [u8]) {
-        assert_eq!(header.len(), Self::SIZE);
+    fn encode(&self, header: &mut [u8; 1]) {
         header[0] = self.fps;
     }
 

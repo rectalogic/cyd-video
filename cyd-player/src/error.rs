@@ -17,6 +17,7 @@ where
     ReadError(D),
     ReadExactError(ReadExactError<D>),
     DecodeErrors(DecodeErrors),
+    LoopEof,
 }
 
 impl<D> From<ConfigError> for Error<D>
