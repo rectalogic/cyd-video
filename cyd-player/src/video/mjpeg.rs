@@ -30,9 +30,9 @@ where
     options: DecoderOptions,
 }
 
-const DECODE_SIZE: usize = MjpegHeader::MAX_WIDTH * MjpegHeader::MAX_HEIGHT * 3;
+pub const DECODE_SIZE: usize = MjpegHeader::MAX_WIDTH * MjpegHeader::MAX_HEIGHT * 3;
 
-impl<R, D> Decoder<R, D, 1, MjpegHeader, DECODE_SIZE> for MjpegDecoder<R>
+impl<R, D> Decoder<R, D, 1, MjpegHeader, { DECODE_SIZE }> for MjpegDecoder<R>
 where
     R: Read + Seek,
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,

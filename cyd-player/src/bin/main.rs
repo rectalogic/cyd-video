@@ -9,10 +9,13 @@
 
 use core::ops::DerefMut;
 use cyd_player::error::Error;
+#[cfg(feature = "mjpeg")]
+use cyd_player::video::mjpeg;
 use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -33,6 +36,7 @@ fn main() -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
+    #[cfg(feature = "alloc")]
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
     let mut display = cyd_player::display::Display::new(cyd_player::display::Peripherals {
@@ -59,7 +63,17 @@ fn main() -> ! {
     if let Err(e) = sdcard.read_file(
         "video.cyd",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
-            match cyd_player::video::play(file, display.deref_mut()) {
+            #[cfg(feature = "mjpeg")]
+            let result = cyd_player::video::play::<
+                _,
+                _,
+                _,
+                _,
+                { mjpeg::DECODE_SIZE },
+                mjpeg::MjpegDecoder<_>,
+            >(file, display.deref_mut());
+
+            match result {
                 Err(e) => display.message(format_args!("{e:?}")),
                 Ok(_) => unreachable!(),
             }

@@ -10,8 +10,9 @@ use esp_hal::{
     time::{Duration, Instant},
 };
 
-mod decoder;
-mod mjpeg;
+pub mod decoder;
+#[cfg(feature = "mjpeg")]
+pub mod mjpeg;
 
 const CENTER: Point = Point::new(320 / 2, 240 / 2);
 
