@@ -1,4 +1,4 @@
-use cyd_encoder::{HEADER_SIZE, encode_header};
+use cyd_encoder::format::{self, FormatHeader};
 use std::{
     error::Error,
     fs::{File, rename},
@@ -10,6 +10,9 @@ use std::{
 #[derive(argh::FromArgs)]
 /// Encode video into custom YUV with header format
 struct Args {
+    #[argh(option, default = "\"mjpeg\".to_string()")]
+    /// video format
+    format: String,
     #[argh(option, default = "25u8")]
     /// frames per second
     fps: u8,
@@ -24,9 +27,19 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Args = argh::from_env();
+    match args.format.as_str() {
+        "mjpeg" => encode_mjpeg(args),
+        _ => Err("invalid format".into()),
+    }
+}
+
+fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
+    let header = format::mjpeg::MjpegHeader::new(args.fps);
     let mut filter = format!(
-        "framerate={},scale=size=192x108:force_original_aspect_ratio=decrease:reset_sar=1",
-        args.fps
+        "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1",
+        args.fps,
+        format::mjpeg::MjpegHeader::MAX_WIDTH,
+        format::mjpeg::MjpegHeader::MAX_HEIGHT
     );
     if let Some(subtitles) = args.subtitles {
         filter.insert_str(
@@ -48,21 +61,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         ])
         .status()?;
 
-    prepend_header(args.output, args.fps)?;
-
+    prepend_header(args.output, header)?;
     Ok(())
 }
 
-fn prepend_header<P: AsRef<Path>>(path: P, fps: u8) -> io::Result<()> {
+fn prepend_header<P: AsRef<Path>, F: FormatHeader>(path: P, header: F) -> io::Result<()> {
     let path = path.as_ref();
     let tmp_path = path.with_extension("tmp");
 
     let mut input = File::open(path)?;
     let mut output = File::create(&tmp_path)?;
 
-    let mut header = [0u8; HEADER_SIZE];
-    encode_header(&mut header, fps);
-    output.write_all(&header)?;
+    let mut buffer = vec![0u8; F::SIZE];
+    header.encode(&mut buffer);
+    output.write_all(&buffer)?;
 
     io::copy(&mut input, &mut output)?;
 
