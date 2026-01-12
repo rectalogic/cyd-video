@@ -8,13 +8,13 @@ use esp_hal::{
     time::{Duration, Instant},
 };
 use mjpeg::MjpegDecoder;
-use zune_jpeg::errors::DecodeErrors;
+use zune_jpeg::{errors::DecodeErrors, zune_core::bytestream::ZByteIoError};
 
 mod mjpeg;
 
-const MAX_WIDTH: usize = 320;
-const MAX_HEIGHT: usize = 240;
-const CENTER: Point = Point::new((MAX_WIDTH / 2) as i32, (MAX_HEIGHT / 2) as i32);
+const MAX_WIDTH: usize = 192;
+const MAX_HEIGHT: usize = 108;
+const CENTER: Point = Point::new(320 / 2, 240 / 2);
 
 pub struct Video {
     fps: u8,
@@ -41,7 +41,10 @@ impl Video {
         loop {
             let pixels = match decoder.decode_into(&mut buffer) {
                 Ok(pixels) => pixels,
-                Err(Error::DecodeErrors(DecodeErrors::ExhaustedData)) => {
+                Err(Error::DecodeErrors(DecodeErrors::IoErrors(ZByteIoError::NotEnoughBytes(
+                    _,
+                    _,
+                )))) => {
                     // Loop video
                     decoder.seek(HEADER_SIZE as u64)?;
                     continue;

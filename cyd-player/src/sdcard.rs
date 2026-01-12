@@ -54,7 +54,7 @@ impl SdCard {
         // Reconfigure frequency
         sdcard.spi(|spi| {
             spi.bus_mut()
-                .apply_config(&SpiConfig::default().with_frequency(Rate::from_mhz(25)))
+                .apply_config(&SpiConfig::default().with_frequency(Rate::from_mhz(50)))
         })?;
 
         let volume_manager = VolumeManager::new(sdcard, DummyTimesource);

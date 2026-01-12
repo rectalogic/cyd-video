@@ -1,7 +1,7 @@
-use cyd_encoder::{encode_header, HEADER_SIZE};
+use cyd_encoder::{HEADER_SIZE, encode_header};
 use std::{
     error::Error,
-    fs::{rename, File},
+    fs::{File, rename},
     io::{self, Write},
     path::Path,
     process::Command,
@@ -25,7 +25,7 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Args = argh::from_env();
     let mut filter = format!(
-        "framerate={},scale=size=320x240:force_original_aspect_ratio=decrease:reset_sar=1",
+        "framerate={},scale=size=192x108:force_original_aspect_ratio=decrease:reset_sar=1",
         args.fps
     );
     if let Some(subtitles) = args.subtitles {

@@ -25,6 +25,7 @@ impl<R: Read + Seek> MjpegDecoder<R> {
         let options = DecoderOptions::new_cmd()
             .set_max_width(MAX_WIDTH)
             .set_max_height(MAX_HEIGHT)
+            .set_strict_mode(false)
             .jpeg_set_out_colorspace(ColorSpace::RGB);
         Self {
             reader: ZBufferedReader::<_, 8192>::new(reader),
