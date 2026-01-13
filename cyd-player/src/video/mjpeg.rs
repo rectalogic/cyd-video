@@ -1,5 +1,4 @@
 use crate::{error::Error, video::decoder::Decoder};
-
 use alloc::vec::Vec;
 use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
 use display_interface::DisplayError;
@@ -37,6 +36,7 @@ where
     R: Read + Seek,
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,
 {
+    type DecoderError = DecodeErrors;
     type ImageDrawable<'a>
         = ImageRaw<'a, Rgb888>
     where
@@ -65,7 +65,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error>> {
+    ) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error, Self::DecoderError>> {
         let mut decoder = JpegDecoder::new_with_options(&mut self.reader, self.options);
         match decoder.decode_into(buffer) {
             Ok(()) => {}
@@ -79,7 +79,9 @@ where
         }
         let info = decoder
             .info()
-            .ok_or(DecodeErrors::FormatStatic("no decoder info"))?;
+            .ok_or(Error::DecodeErrors(DecodeErrors::FormatStatic(
+                "no decoder info",
+            )))?;
         Ok(ImageRaw::<Rgb888>::new(
             &buffer[..(info.width * info.height * 3) as usize],
             info.width as u32,
@@ -90,7 +92,7 @@ where
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error>> {
+    ) -> Result<(), Error<R::Error, Self::DecoderError>> {
         image
             .draw(&mut display.color_converted())
             .map_err(Error::DisplayError)?;

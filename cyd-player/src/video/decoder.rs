@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::error::Error;
 use cyd_encoder::format::FormatHeader;
 use display_interface::DisplayError;
@@ -15,6 +17,7 @@ where
     F: FormatHeader<HEADER_SIZE>,
     Self: Sized,
 {
+    type DecoderError: fmt::Debug;
     type ImageDrawable<'a>: ImageDrawable
     where
         Self: 'a;
@@ -26,11 +29,11 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error>>;
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError>>;
 
     fn render<'a>(
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error>>;
+    ) -> Result<(), Error<R::Error, Self::DecoderError>>;
 }

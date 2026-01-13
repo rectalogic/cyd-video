@@ -25,6 +25,7 @@ where
     R: Read + Seek,
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,
 {
+    type DecoderError = R::Error;
     type ImageDrawable<'a>
         = Pixels<'a>
     where
@@ -44,7 +45,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Pixels<'a>, Error<R::Error>> {
+    ) -> Result<Pixels<'a>, Error<R::Error, Self::DecoderError>> {
         let width = self.header.width();
         let height = self.header.height();
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
@@ -66,7 +67,7 @@ where
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error>> {
+    ) -> Result<(), Error<R::Error, Self::DecoderError>> {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }

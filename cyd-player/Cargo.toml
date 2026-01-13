@@ -9,7 +9,7 @@ name = "cyd-video"
 path = "./src/bin/main.rs"
 
 [features]
-default = ["log", "mjpeg"]
+default = ["log"]
 alloc = ["dep:esp-alloc"]
 log = [
     "zune-jpeg?/log",

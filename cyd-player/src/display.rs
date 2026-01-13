@@ -51,7 +51,7 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible, Infallible>> {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()

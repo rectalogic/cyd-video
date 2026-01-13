@@ -63,37 +63,31 @@ fn main() -> ! {
         Ok(sdcard) => sdcard,
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
+
     #[cfg(feature = "mjpeg")]
-    let filename = "video.mjp";
-    #[cfg(feature = "yuv")]
-    let filename = "video.yuv";
     if let Err(e) = sdcard.read_file(
-        filename,
-        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
-            #[cfg(feature = "mjpeg")]
-            let result = cyd_player::video::play::<
-                _,
-                _,
-                _,
-                _,
-                { mjpeg::DECODE_SIZE },
-                mjpeg::MjpegDecoder<_>,
-            >(file, display.deref_mut());
-
-            #[cfg(feature = "yuv")]
-            let result =
-                cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
-                    file,
-                    display.deref_mut(),
-                );
-
-            match result {
-                Err(e) => display.message(format_args!("{e:?}")),
-                Ok(_) => unreachable!(),
-            }
+        "video.mjp",
+        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+            cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
+                file,
+                display.deref_mut(),
+            )
         },
     ) {
-        display.message(format_args!("Load video failed: {e:?}"));
+        display.message(format_args!("{e:?}"));
+    }
+
+    #[cfg(feature = "yuv")]
+    if let Err(e) = sdcard.read_file(
+        "video.yuv",
+        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+            cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                file,
+                display.deref_mut(),
+            )
+        },
+    ) {
+        display.message(format_args!("{e:?}"));
     }
 
     unreachable!();

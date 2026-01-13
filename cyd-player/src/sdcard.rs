@@ -1,5 +1,5 @@
 use crate::error::Error;
-use core::convert::Infallible;
+use core::{convert::Infallible, fmt};
 use embedded_hal::spi::SpiBus;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager};
@@ -30,7 +30,7 @@ pub struct SdCard {
 }
 
 impl SdCard {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible, Infallible>> {
         let mut spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
@@ -62,13 +62,14 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub fn read_file<F, R>(
+    pub fn read_file<F, R, E>(
         &mut self,
         filename: &str,
         f: F,
-    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>
+    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, E>>
     where
-        F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>,
+        E: fmt::Debug,
+        F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, E>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let directory = volume.open_root_dir()?;

@@ -21,7 +21,7 @@ const CENTER: Point = Point::new(320 / 2, 240 / 2);
 pub fn play<R, DT, const HEADER_SIZE: usize, F, const DECODE_SIZE: usize, D>(
     reader: R,
     mut display: &mut DT,
-) -> Result<(), Error<R::Error>>
+) -> Result<(), Error<R::Error, D::DecoderError>>
 where
     R: Read + Seek,
     DT: DrawTarget<Color = Rgb565, Error = DisplayError>,

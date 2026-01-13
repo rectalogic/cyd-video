@@ -3,25 +3,26 @@ use display_interface::DisplayError;
 use embedded_io::ReadExactError;
 use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
-use zune_jpeg::errors::DecodeErrors;
 
 #[derive(Debug)]
-pub enum Error<D>
+pub enum Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
     SpiConfigError(ConfigError),
     SpiError(esp_hal::spi::Error),
     DisplayError(DisplayError),
     SdCardError(embedded_sdmmc::Error<SdCardError>),
-    ReadError(D),
-    ReadExactError(ReadExactError<D>),
-    DecodeErrors(DecodeErrors),
+    ReadError(IO),
+    ReadExactError(ReadExactError<IO>),
+    DecodeErrors(D),
     LoopEof,
 }
 
-impl<D> From<ConfigError> for Error<D>
+impl<IO, D> From<ConfigError> for Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
     fn from(value: ConfigError) -> Self {
@@ -29,8 +30,9 @@ where
     }
 }
 
-impl<D> From<DisplayError> for Error<D>
+impl<IO, D> From<DisplayError> for Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
     fn from(value: DisplayError) -> Self {
@@ -38,8 +40,9 @@ where
     }
 }
 
-impl<D> From<embedded_sdmmc::Error<SdCardError>> for Error<D>
+impl<IO, D> From<embedded_sdmmc::Error<SdCardError>> for Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
     fn from(value: embedded_sdmmc::Error<SdCardError>) -> Self {
@@ -47,29 +50,22 @@ where
     }
 }
 
-impl<D> From<ReadExactError<D>> for Error<D>
+impl<IO, D> From<ReadExactError<IO>> for Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
-    fn from(value: ReadExactError<D>) -> Self {
+    fn from(value: ReadExactError<IO>) -> Self {
         Error::ReadExactError(value)
     }
 }
 
-impl<D> From<esp_hal::spi::Error> for Error<D>
+impl<IO, D> From<esp_hal::spi::Error> for Error<IO, D>
 where
+    IO: fmt::Debug,
     D: fmt::Debug,
 {
     fn from(value: esp_hal::spi::Error) -> Self {
         Error::SpiError(value)
-    }
-}
-
-impl<D> From<DecodeErrors> for Error<D>
-where
-    D: fmt::Debug,
-{
-    fn from(value: DecodeErrors) -> Self {
-        Error::DecodeErrors(value)
     }
 }
