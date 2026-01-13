@@ -20,6 +20,7 @@ log = [
 ]
 mjpeg = ["dep:zune-jpeg", "alloc"]
 yuv = []
+rgb = []
 
 [dependencies]
 esp-hal = { version = "~1.0", features = ["esp32", "unstable"] }

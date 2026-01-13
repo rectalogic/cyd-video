@@ -18,9 +18,7 @@ where
     Self: Sized,
 {
     type DecoderError: fmt::Debug;
-    type ImageDrawable<'a>: ImageDrawable
-    where
-        Self: 'a;
+    type ImageDrawable<'a>: ImageDrawable + 'a;
 
     fn new(reader: R) -> Result<Self, ReadExactError<R::Error>>;
 

@@ -11,6 +11,8 @@ use core::ops::DerefMut;
 use cyd_player::error::Error;
 #[cfg(feature = "mjpeg")]
 use cyd_player::video::mjpeg;
+#[cfg(feature = "rgb")]
+use cyd_player::video::rgb;
 #[cfg(feature = "yuv")]
 use cyd_player::video::yuv;
 
@@ -82,6 +84,19 @@ fn main() -> ! {
         "video.yuv",
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
             cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                file,
+                display.deref_mut(),
+            )
+        },
+    ) {
+        display.message(format_args!("{e:?}"));
+    }
+
+    #[cfg(feature = "rgb")]
+    if let Err(e) = sdcard.read_file(
+        "video.rgb",
+        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+            cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
                 file,
                 display.deref_mut(),
             )

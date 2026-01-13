@@ -13,6 +13,8 @@ use esp_hal::{
 pub mod decoder;
 #[cfg(feature = "mjpeg")]
 pub mod mjpeg;
+#[cfg(feature = "rgb")]
+pub mod rgb;
 #[cfg(feature = "yuv")]
 pub mod yuv;
 

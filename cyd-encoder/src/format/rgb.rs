@@ -1,3 +1,3 @@
 use super::size_fps::SizeFpsHeader;
 
-pub type YuvHeader = SizeFpsHeader;
+pub type RgbHeader = SizeFpsHeader;

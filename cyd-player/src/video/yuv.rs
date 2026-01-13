@@ -9,10 +9,7 @@ use embedded_graphics::{
 };
 use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
 
-pub struct YuvDecoder<R>
-where
-    R: Read + Seek,
-{
+pub struct YuvDecoder<R> {
     header: YuvHeader,
     reader: R,
 }
@@ -26,10 +23,7 @@ where
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,
 {
     type DecoderError = R::Error;
-    type ImageDrawable<'a>
-        = Pixels<'a>
-    where
-        Self: 'a;
+    type ImageDrawable<'a> = Pixels<'a>;
 
     fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 5];
@@ -45,7 +39,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Pixels<'a>, Error<R::Error, Self::DecoderError>> {
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError>> {
         let width = self.header.width() as u32;
         let height = self.header.height() as u32;
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
