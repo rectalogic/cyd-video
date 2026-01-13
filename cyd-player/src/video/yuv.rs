@@ -49,7 +49,7 @@ where
         let width = self.header.width() as u32;
         let height = self.header.height() as u32;
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
-        let size = Size::new(width as u32, height as u32);
+        let size = Size::new(width, height);
         match self.reader.read_exact(buffer) {
             Ok(_) => {}
             Err(ReadExactError::UnexpectedEof) => {
