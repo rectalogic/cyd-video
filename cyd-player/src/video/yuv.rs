@@ -46,8 +46,8 @@ where
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
     ) -> Result<Pixels<'a>, Error<R::Error, Self::DecoderError>> {
-        let width = self.header.width();
-        let height = self.header.height();
+        let width = self.header.width() as u32;
+        let height = self.header.height() as u32;
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
         let size = Size::new(width as u32, height as u32);
         match self.reader.read_exact(buffer) {
