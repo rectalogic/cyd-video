@@ -13,6 +13,8 @@ use esp_hal::{
 pub mod decoder;
 #[cfg(feature = "mjpeg")]
 pub mod mjpeg;
+#[cfg(feature = "yuv")]
+pub mod yuv;
 
 const CENTER: Point = Point::new(320 / 2, 240 / 2);
 

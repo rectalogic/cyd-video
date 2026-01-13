@@ -11,3 +11,4 @@ pub trait FormatHeader<const HEADER_SIZE: usize> {
 }
 
 pub mod mjpeg;
+pub mod yuv;

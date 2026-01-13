@@ -11,6 +11,9 @@ use core::ops::DerefMut;
 use cyd_player::error::Error;
 #[cfg(feature = "mjpeg")]
 use cyd_player::video::mjpeg;
+#[cfg(feature = "yuv")]
+use cyd_player::video::yuv;
+
 use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
@@ -60,8 +63,12 @@ fn main() -> ! {
         Ok(sdcard) => sdcard,
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
+    #[cfg(feature = "mjpeg")]
+    let filename = "video.mjp";
+    #[cfg(feature = "yuv")]
+    let filename = "video.yuv";
     if let Err(e) = sdcard.read_file(
-        "video.cyd",
+        filename,
         |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>>> {
             #[cfg(feature = "mjpeg")]
             let result = cyd_player::video::play::<
@@ -72,6 +79,13 @@ fn main() -> ! {
                 { mjpeg::DECODE_SIZE },
                 mjpeg::MjpegDecoder<_>,
             >(file, display.deref_mut());
+
+            #[cfg(feature = "yuv")]
+            let result =
+                cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                    file,
+                    display.deref_mut(),
+                );
 
             match result {
                 Err(e) => display.message(format_args!("{e:?}")),

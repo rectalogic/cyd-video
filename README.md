@@ -13,17 +13,18 @@ Configure environment variables, see the
 [documentation](https://github.com/esp-rs/espup?tab=readme-ov-file#environment-variables-setup).
 e.g. `. ~/export-esp.sh`.
 
-Build and run on esp32:
+Build and run on esp32. You must specify a format feature, `mjpeg` or `yuv`.
+The SD card must have a corresponding file either `video.mjp` or `video.yuv`.
 
 ```sh-session
-$ cd cyd-video
-$ cargo run
+$ cd cyd-player
+$ cargo run -F yuv
 ```
 
 Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
 
 ```sh-session
-$ cd encoder
-$ cargo encode --fps 25 <input.mp4> video.cyd
-$ cargo preview video.cyd
+$ cd cyd-encoder
+$ cargo encode --format mjpeg --fps 25 <input.mp4> video.mjp
+$ cargo preview --format mjpeg video.mjp
 ```

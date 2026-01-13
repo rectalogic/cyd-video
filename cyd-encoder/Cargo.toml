@@ -5,7 +5,7 @@ edition = "2024"
 
 [features]
 default = ["std"]
-std = ["dep:argh"]
+std = ["dep:argh", "dep:regex"]
 
 [[bin]]
 name = "encode"
@@ -19,3 +19,4 @@ required-features = ["std"]
 
 [dependencies]
 argh = { version = "0.1.13", optional = true }
+regex = { version = "1.12.2", optional = true }

@@ -19,6 +19,7 @@ log = [
     "embedded-sdmmc/log"
 ]
 mjpeg = ["dep:zune-jpeg", "alloc"]
+yuv = []
 
 [dependencies]
 esp-hal = { version = "~1.0", features = ["esp32", "unstable"] }
