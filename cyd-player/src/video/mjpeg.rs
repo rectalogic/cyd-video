@@ -37,10 +37,7 @@ where
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,
 {
     type DecoderError = DecodeErrors;
-    type ImageDrawable<'a>
-        = ImageRaw<'a, Rgb888>
-    where
-        Self: 'a;
+    type ImageDrawable<'a> = ImageRaw<'a, Rgb888>;
 
     fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 1];

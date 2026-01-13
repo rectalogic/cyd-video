@@ -13,8 +13,8 @@ Configure environment variables, see the
 [documentation](https://github.com/esp-rs/espup?tab=readme-ov-file#environment-variables-setup).
 e.g. `. ~/export-esp.sh`.
 
-Build and run on esp32. You must specify a format feature, `mjpeg` or `yuv`.
-The SD card must have a corresponding file either `video.mjp` or `video.yuv`.
+Build and run on esp32. You must specify a format feature, `mjpeg`, `yuv` or `rgb`.
+The SD card must have a corresponding file either `video.mjp`, `video.yuv` or `video.rgb`.
 
 ```sh-session
 $ cd cyd-player
@@ -28,3 +28,13 @@ $ cd cyd-encoder
 $ cargo encode --format mjpeg --fps 25 <input.mp4> video.mjp
 $ cargo preview --format mjpeg video.mjp
 ```
+
+## Performance
+
+The decoder is unuseably slow. The bottleneck is reading from the SD card.
+`esp_hal` only supports `SPI` for the SD card, not the faster `SDIO`.
+`SDIO` support is being work on in https://github.com/esp-rs/esp-hal/pull/3503
+
+Also the `zune_jpeg` decoder needs `alloc` and decodes to a full RGB buffer.
+This seems to consume all available RAM unless you constrain the frame size to something
+very small (which is what this implementation does).
