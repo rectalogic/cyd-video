@@ -140,7 +140,7 @@ dependencies = [
  "format_no_std",
  "ili9341",
  "log",
- "zune-jpeg",
+ "tjpgdec-rs",
 ]
 
 [[package]]
@@ -1304,6 +1304,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tjpgdec-rs"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72efb4758c22d4ede593de7a74d19458ed5a3d1bcbec8b884b11fdf80ece8a29"
+dependencies = [
+ "heapless 0.8.0",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1443,20 +1452,4 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.113",
-]
-
-[[package]]
-name = "zune-core"
-version = "0.5.0"
-source = "git+https://github.com/etemesi254/zune-image.git?rev=4063a17#4063a17c5528c3d8fed987d6dc2f1b1fb080acb1"
-dependencies = [
- "log",
-]
-
-[[package]]
-name = "zune-jpeg"
-version = "0.5.8"
-source = "git+https://github.com/etemesi254/zune-image.git?rev=4063a17#4063a17c5528c3d8fed987d6dc2f1b1fb080acb1"
-dependencies = [
- "zune-core",
 ]

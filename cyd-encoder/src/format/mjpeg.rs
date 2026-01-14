@@ -11,8 +11,8 @@ impl MjpegHeader {
 }
 
 impl FormatHeader<1> for MjpegHeader {
-    const MAX_WIDTH: usize = 192;
-    const MAX_HEIGHT: usize = 144;
+    const MAX_WIDTH: usize = 320;
+    const MAX_HEIGHT: usize = 240;
 
     fn parse(header: &[u8; 1]) -> Self {
         Self::new(header[0])
