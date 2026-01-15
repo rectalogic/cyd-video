@@ -46,6 +46,7 @@ display-interface = "0.5.0"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b", default-features = false }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
+cfg-if = "1.0"
 cyd-encoder = { path = "../cyd-encoder", default-features = false }
 tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"], optional = true }
 

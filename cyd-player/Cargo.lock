@@ -124,6 +124,7 @@ version = "0.1.0"
 name = "cyd-player"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "cyd-encoder",
  "display-interface",
  "display-interface-spi",

@@ -1,6 +1,5 @@
 use core::{
     cell::{Cell, RefCell},
-    convert::Infallible,
     fmt,
 };
 
@@ -191,9 +190,8 @@ impl<'a> JpegDrawable<'a> {
                 Ok(true)
             },
         ) {
+            // Not sure how we can return an error here
             log::error!("jpeg decode error: {e:?}");
-            // Have to return some kind of DisplayError
-            return Err(DisplayError::InvalidFormatError);
         }
         if let Some(e) = display_error.take() {
             return Err(e);
