@@ -28,6 +28,7 @@ fn preview_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
     let header = MjpegHeader::parse(&buffer);
     Command::new("ffplay")
         .args([
+            "-hide_banner",
             "-skip_initial_bytes",
             &MjpegHeader::header_size().to_string(),
             "-framerate",

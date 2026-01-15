@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
     let header = format::mjpeg::MjpegHeader::new(args.fps);
     let mut filter = format!(
-        "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1",
+        "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1:flags=lanczos",
         args.fps,
         format::mjpeg::MjpegHeader::MAX_WIDTH,
         format::mjpeg::MjpegHeader::MAX_HEIGHT
@@ -59,6 +59,8 @@ fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
             "-an",
             "-vf",
             &filter,
+            "-q:v",
+            "7",
             "-f",
             "mjpeg",
             "-y",

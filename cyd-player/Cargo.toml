@@ -9,16 +9,15 @@ name = "cyd-video"
 path = "./src/bin/main.rs"
 
 [features]
-default = ["log"]
+default = ["log", "mjpeg"]
 alloc = ["dep:esp-alloc"]
 log = [
-    "zune-jpeg?/log",
     "esp-hal/log-04",
     "esp-bootloader-esp-idf/log-04",
     "esp-println/log-04",
     "embedded-sdmmc/log"
 ]
-mjpeg = ["dep:zune-jpeg", "alloc"]
+mjpeg = ["dep:tjpgdec-rs", "alloc"]
 yuv = []
 rgb = []
 
@@ -47,8 +46,9 @@ display-interface = "0.5.0"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b", default-features = false }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-zune-jpeg = { version = "0.5.8", git = "https://github.com/etemesi254/zune-image.git", rev = "4063a17", default-features = false, optional = true }
+cfg-if = "1.0"
 cyd-encoder = { path = "../cyd-encoder", default-features = false }
+tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"], optional = true }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

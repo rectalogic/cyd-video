@@ -1,23 +1,23 @@
+use core::{
+    cell::{Cell, RefCell},
+    fmt,
+};
+
+use alloc::vec;
+
 use crate::{error::Error, video::decoder::Decoder};
-use alloc::vec::Vec;
 use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
 use display_interface::DisplayError;
 use embedded_graphics::{
     Drawable,
-    image::{Image, ImageRaw},
-    pixelcolor::{Rgb565, Rgb888},
-    prelude::{DrawTarget, DrawTargetExt},
+    geometry::Point,
+    image::{Image, ImageDrawable},
+    pixelcolor::Rgb565,
+    prelude::*,
+    primitives::Rectangle as GraphicsRectangle,
 };
-use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
-use zune_jpeg::{
-    JpegDecoder,
-    errors::DecodeErrors,
-    zune_core::{
-        bytestream::{ZByteIoError, ZByteReaderTrait, ZSeekFrom},
-        colorspace::ColorSpace,
-        options::DecoderOptions,
-    },
-};
+use embedded_io::{ErrorType, Read, ReadExactError, Seek, SeekFrom};
+use tjpgdec_rs::{JpegDecoder, MemoryPool, RECOMMENDED_POOL_SIZE};
 extern crate alloc;
 
 pub struct MjpegDecoder<R>
@@ -25,33 +25,78 @@ where
     R: Read + Seek,
 {
     header: MjpegHeader,
-    reader: ZBufferedReader<R, 8192>,
-    options: DecoderOptions,
+    reader: BufReader<R, 1024>,
 }
 
-pub const DECODE_SIZE: usize = MjpegHeader::MAX_WIDTH * MjpegHeader::MAX_HEIGHT * 3;
+// 15K buffer to read compressed JPG 320x240 image plus pool
+pub const DECODE_SIZE: usize = (15 * 1024) + RECOMMENDED_POOL_SIZE;
+
+mod markers {
+    pub const SOI: (u8, u8) = (0xFF, 0xD8);
+    pub const EOI: (u8, u8) = (0xFF, 0xD9);
+}
+
+impl<R> MjpegDecoder<R>
+where
+    R: Read + Seek,
+{
+    fn read_jpeg<'a>(
+        &mut self,
+        jpeg_data: &'a mut [u8],
+    ) -> Result<&'a [u8], ReadExactError<R::Error>> {
+        // First, find the SOI marker
+        let mut prev_byte = 0u8;
+        loop {
+            let mut byte = [0u8];
+            self.reader.read_exact(&mut byte)?;
+
+            if prev_byte == markers::SOI.0 && byte[0] == markers::SOI.1 {
+                break;
+            }
+            prev_byte = byte[0];
+        }
+
+        // Start copying data into jpeg_data, beginning with SOI
+        jpeg_data[0] = markers::SOI.0;
+        jpeg_data[1] = markers::SOI.1;
+        let mut pos = 2;
+
+        prev_byte = markers::SOI.1;
+
+        // Copy data until we find EOI
+        loop {
+            let mut byte = [0u8];
+            self.reader.read_exact(&mut byte)?;
+
+            jpeg_data[pos] = byte[0];
+            pos += 1;
+
+            if prev_byte == markers::EOI.0 && byte[0] == markers::EOI.1 {
+                break;
+            }
+            prev_byte = byte[0];
+        }
+
+        Ok(&jpeg_data[..pos])
+    }
+}
 
 impl<R, D> Decoder<R, D, 1, MjpegHeader, { DECODE_SIZE }> for MjpegDecoder<R>
 where
     R: Read + Seek,
     D: DrawTarget<Color = Rgb565, Error = DisplayError>,
 {
-    type DecoderError = DecodeErrors;
-    type ImageDrawable<'a> = ImageRaw<'a, Rgb888>;
+    type DecoderError = tjpgdec_rs::Error;
+    type ImageDrawable<'a> = JpegDrawable<'a>;
 
     fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 1];
         reader.read_exact(&mut buffer)?;
         let header = MjpegHeader::parse(&buffer);
-        let options = DecoderOptions::new_cmd()
-            .set_max_width(MjpegHeader::MAX_WIDTH)
-            .set_max_height(MjpegHeader::MAX_HEIGHT)
-            .set_strict_mode(false)
-            .jpeg_set_out_colorspace(ColorSpace::RGB);
+
         Ok(Self {
             header,
-            reader: ZBufferedReader::<_, 8192>::new(reader),
-            options,
+            reader: BufReader::<_, 1024>::new(reader),
         })
     }
 
@@ -62,27 +107,21 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<ImageRaw<'a, Rgb888>, Error<R::Error, Self::DecoderError>> {
-        let mut decoder = JpegDecoder::new_with_options(&mut self.reader, self.options);
-        match decoder.decode_into(buffer) {
-            Ok(()) => {}
-            Err(DecodeErrors::IoErrors(ZByteIoError::NotEnoughBytes(_, _))) => {
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError>> {
+        let [pool_buffer, decode_buffer] = buffer
+            .get_disjoint_mut([0..RECOMMENDED_POOL_SIZE, RECOMMENDED_POOL_SIZE..DECODE_SIZE])
+            .unwrap();
+        let jpeg_data = match self.read_jpeg(decode_buffer) {
+            Ok(data) => data,
+            Err(ReadExactError::UnexpectedEof) => {
                 self.reader
-                    .z_seek(ZSeekFrom::Start(MjpegHeader::header_size() as u64))
-                    .map_err(|e| Error::DecodeErrors(DecodeErrors::IoErrors(e)))?;
+                    .seek(SeekFrom::Start(MjpegHeader::header_size() as u64))
+                    .map_err(Error::ReadError)?;
                 return Err(Error::LoopEof);
             }
-            Err(e) => return Err(Error::DecodeErrors(e)),
-        }
-        let info = decoder
-            .info()
-            .ok_or(Error::DecodeErrors(DecodeErrors::FormatStatic(
-                "no decoder info",
-            )))?;
-        Ok(ImageRaw::<Rgb888>::new(
-            &buffer[..(info.width * info.height * 3) as usize],
-            info.width as u32,
-        ))
+            Err(e) => return Err(Error::ReadExactError(e)),
+        };
+        JpegDrawable::new(pool_buffer, jpeg_data)
     }
 
     fn render<'a>(
@@ -90,231 +129,173 @@ where
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
     ) -> Result<(), Error<R::Error, Self::DecoderError>> {
-        image
-            .draw(&mut display.color_converted())
-            .map_err(Error::DisplayError)?;
+        image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
 }
 
-struct ZBufferedReader<R, const BUFFER_SIZE: usize = 8192> {
-    inner: R,
-    buffer: [u8; BUFFER_SIZE],
-    pos: usize,
-    filled: usize,
-    stream_pos: u64,
+pub struct JpegDrawable<'a> {
+    jpeg_data: &'a [u8],
+    decoder: RefCell<JpegDecoder<'a>>,
 }
 
-impl<R: Read, const BUFFER_SIZE: usize> ZBufferedReader<R, BUFFER_SIZE> {
-    fn new(inner: R) -> Self {
+impl<'a> JpegDrawable<'a> {
+    fn new<E>(
+        pool_buffer: &'a mut [u8],
+        jpeg_data: &'a [u8],
+    ) -> Result<Self, Error<E, tjpgdec_rs::Error>>
+    where
+        E: fmt::Debug,
+    {
+        let mut pool = MemoryPool::new(pool_buffer);
+        let mut decoder = JpegDecoder::new();
+        decoder
+            .prepare(jpeg_data, &mut pool)
+            .map_err(Error::DecodeErrors)?;
+        Ok(Self {
+            jpeg_data,
+            decoder: RefCell::new(decoder),
+        })
+    }
+
+    fn render<D>(&self, target: &mut D) -> Result<(), D::Error>
+    where
+        D: DrawTarget<Color = Rgb565>,
+    {
+        let display_error: Cell<Option<D::Error>> = Cell::new(None);
+        let mut decoder = self.decoder.borrow_mut();
+        let mcu_size = decoder.mcu_buffer_size();
+        let work_size = decoder.work_buffer_size();
+        let mut mcu_buffer = vec![0i16; mcu_size];
+        let mut work_buffer = vec![0u8; work_size];
+        if let Err(e) = decoder.decompress(
+            self.jpeg_data,
+            0,
+            &mut mcu_buffer,
+            &mut work_buffer,
+            &mut |_decoder, bitmap, jpeg_rect| {
+                let target_rect = GraphicsRectangle::with_corners(
+                    Point::new(jpeg_rect.left as i32, jpeg_rect.top as i32),
+                    Point::new(jpeg_rect.right as i32, jpeg_rect.bottom as i32),
+                );
+                let pixels = bitmap
+                    .chunks_exact(3)
+                    .map(|pixel| Rgb565::new(pixel[0] >> 3, pixel[1] >> 2, pixel[2] >> 3));
+                // We can't return custom errors from the output function
+                // https://docs.rs/tjpgdec-rs/0.4.0/tjpgdec_rs/type.OutputCallback.html
+                if let Err(e) = target.fill_contiguous(&target_rect, pixels) {
+                    display_error.set(Some(e));
+                    return Ok(false);
+                }
+                Ok(true)
+            },
+        ) {
+            // Not sure how we can return an error here
+            log::error!("jpeg decode error: {e:?}");
+        }
+        if let Some(e) = display_error.take() {
+            return Err(e);
+        }
+        Ok(())
+    }
+}
+
+impl ImageDrawable for JpegDrawable<'_> {
+    type Color = Rgb565;
+
+    fn draw<D>(&self, target: &mut D) -> Result<(), <D as DrawTarget>::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
+    {
+        self.render(target)
+    }
+
+    fn draw_sub_image<D>(
+        &self,
+        target: &mut D,
+        area: &GraphicsRectangle,
+    ) -> Result<(), <D as DrawTarget>::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
+    {
+        self.draw(&mut target.translated(-area.top_left).clipped(area))
+    }
+}
+
+impl OriginDimensions for JpegDrawable<'_> {
+    fn size(&self) -> Size {
+        let decoder = self.decoder.borrow();
+        Size::new(decoder.width() as u32, decoder.height() as u32)
+    }
+}
+
+struct BufReader<R, const BUFFER_SIZE: usize> {
+    buffer: [u8; BUFFER_SIZE],
+    reader: R,
+    pos: usize,    // Current position in buffer
+    filled: usize, // Number of valid bytes in buffer
+}
+
+impl<R: Read, const BUFFER_SIZE: usize> BufReader<R, BUFFER_SIZE> {
+    fn new(reader: R) -> Self {
         Self {
-            inner,
-            buffer: [0u8; BUFFER_SIZE],
+            buffer: [0; BUFFER_SIZE],
+            reader,
             pos: 0,
             filled: 0,
-            stream_pos: 0,
         }
     }
 
-    fn fill_buf(&mut self) -> Result<&[u8], ZByteIoError> {
-        if self.pos >= self.filled {
-            self.filled = self
-                .inner
-                .read(&mut self.buffer)
-                .map_err(|_| ZByteIoError::Generic("Failed to read from stream"))?;
-            self.pos = 0;
-        }
-        Ok(&self.buffer[self.pos..self.filled])
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.pos = (self.pos + amt).min(self.filled);
-        self.stream_pos += amt as u64;
-    }
-
+    /// Returns the number of bytes available in the internal buffer
     fn available(&self) -> usize {
         self.filled - self.pos
     }
-}
 
-impl<R: Read + Seek, const BUFFER_SIZE: usize> ZByteReaderTrait
-    for ZBufferedReader<R, BUFFER_SIZE>
-{
-    fn read_byte_no_error(&mut self) -> u8 {
-        if let Ok(buf) = self.fill_buf()
-            && !buf.is_empty()
-        {
-            let byte = buf[0];
-            self.consume(1);
-            return byte;
-        }
-        0
-    }
-
-    fn read_exact_bytes(&mut self, buf: &mut [u8]) -> Result<(), ZByteIoError> {
-        let mut offset = 0;
-        while offset < buf.len() {
-            let available = self.fill_buf()?;
-            if available.is_empty() {
-                return Err(ZByteIoError::NotEnoughBytes(buf.len(), offset));
-            }
-            let to_copy = available.len().min(buf.len() - offset);
-            buf[offset..offset + to_copy].copy_from_slice(&available[..to_copy]);
-            self.consume(to_copy);
-            offset += to_copy;
+    /// Fill the buffer by reading from the underlying reader
+    fn fill_buf(&mut self) -> Result<(), R::Error> {
+        if self.pos >= self.filled {
+            // Buffer is exhausted, refill it
+            self.filled = self.reader.read(&mut self.buffer)?;
+            self.pos = 0;
         }
         Ok(())
     }
+}
 
-    fn read_const_bytes<const N: usize>(&mut self, buf: &mut [u8; N]) -> Result<(), ZByteIoError> {
-        self.read_exact_bytes(buf)
-    }
+impl<R: Read, const BUFFER_SIZE: usize> ErrorType for BufReader<R, BUFFER_SIZE> {
+    type Error = R::Error;
+}
 
-    fn read_const_bytes_no_error<const N: usize>(&mut self, buf: &mut [u8; N]) {
-        let _ = self.read_exact_bytes(buf);
-    }
-
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize, ZByteIoError> {
-        let mut total = 0;
-        while total < buf.len() {
-            let available = self.fill_buf()?;
-            if available.is_empty() {
-                break;
-            }
-            let to_copy = available.len().min(buf.len() - total);
-            buf[total..total + to_copy].copy_from_slice(&available[..to_copy]);
-            self.consume(to_copy);
-            total += to_copy;
-        }
-        Ok(total)
-    }
-
-    fn peek_bytes(&mut self, buf: &mut [u8]) -> Result<usize, ZByteIoError> {
-        if buf.len() > BUFFER_SIZE {
-            return Err(ZByteIoError::NotEnoughBuffer(BUFFER_SIZE, buf.len()));
+impl<R: Read, const BUFFER_SIZE: usize> Read for BufReader<R, BUFFER_SIZE> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        // If the requested read is larger than our buffer, and our buffer is empty,
+        // bypass buffering and read directly
+        if buf.len() >= BUFFER_SIZE && self.available() == 0 {
+            return self.reader.read(buf);
         }
 
-        let mut total = 0;
-        let initial_pos = self.pos;
+        // Ensure we have data in our buffer
+        self.fill_buf()?;
 
-        while total < buf.len() {
-            let available = self.fill_buf()?;
-            if available.is_empty() {
-                break;
-            }
-            let to_copy = available.len().min(buf.len() - total);
-            buf[total..total + to_copy].copy_from_slice(&available[..to_copy]);
-            self.pos += to_copy;
-            total += to_copy;
+        // Copy from internal buffer to output buffer
+        let available = self.available();
+        if available == 0 {
+            return Ok(0); // EOF
         }
 
-        // Reset position without updating stream_pos
-        self.pos = initial_pos;
-        Ok(total)
-    }
+        let to_copy = available.min(buf.len());
+        buf[..to_copy].copy_from_slice(&self.buffer[self.pos..self.pos + to_copy]);
+        self.pos += to_copy;
 
-    fn peek_exact_bytes(&mut self, buf: &mut [u8]) -> Result<(), ZByteIoError> {
-        let read = self.peek_bytes(buf)?;
-        if read < buf.len() {
-            Err(ZByteIoError::NotEnoughBytes(buf.len(), read))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn z_seek(&mut self, from: ZSeekFrom) -> Result<u64, ZByteIoError> {
-        let seek_from = match from {
-            ZSeekFrom::Start(pos) => SeekFrom::Start(pos),
-            ZSeekFrom::End(pos) => SeekFrom::End(pos),
-            ZSeekFrom::Current(offset) => {
-                // Adjust for buffered data
-                let buffer_offset = -(self.available() as i64);
-                SeekFrom::Current(offset + buffer_offset)
-            }
-        };
-
-        let new_pos = self
-            .inner
-            .seek(seek_from)
-            .map_err(|_| ZByteIoError::SeekError("Seek operation failed"))?;
-
-        // Invalidate buffer after seek
-        self.pos = 0;
-        self.filled = 0;
-        self.stream_pos = new_pos;
-
-        Ok(new_pos)
-    }
-
-    fn is_eof(&mut self) -> Result<bool, ZByteIoError> {
-        let buf = self.fill_buf()?;
-        Ok(buf.is_empty())
-    }
-
-    fn z_position(&mut self) -> Result<u64, ZByteIoError> {
-        Ok(self.stream_pos)
-    }
-
-    fn read_remaining(&mut self, sink: &mut Vec<u8>) -> Result<usize, ZByteIoError> {
-        let mut total = 0;
-        loop {
-            let available = self.fill_buf()?;
-            if available.is_empty() {
-                break;
-            }
-            sink.extend_from_slice(available);
-            let len = available.len();
-            self.consume(len);
-            total += len;
-        }
-        Ok(total)
+        Ok(to_copy)
     }
 }
 
-impl<R: Read + Seek, const BUFFER_SIZE: usize> ZByteReaderTrait
-    for &mut ZBufferedReader<R, BUFFER_SIZE>
-{
-    fn read_byte_no_error(&mut self) -> u8 {
-        (*self).read_byte_no_error()
-    }
-
-    fn read_exact_bytes(&mut self, buf: &mut [u8]) -> Result<(), ZByteIoError> {
-        (*self).read_exact_bytes(buf)
-    }
-
-    fn read_const_bytes<const N: usize>(&mut self, buf: &mut [u8; N]) -> Result<(), ZByteIoError> {
-        (*self).read_const_bytes(buf)
-    }
-
-    fn read_const_bytes_no_error<const N: usize>(&mut self, buf: &mut [u8; N]) {
-        (*self).read_const_bytes_no_error(buf)
-    }
-
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize, ZByteIoError> {
-        (*self).read_bytes(buf)
-    }
-
-    fn peek_bytes(&mut self, buf: &mut [u8]) -> Result<usize, ZByteIoError> {
-        (*self).peek_bytes(buf)
-    }
-
-    fn peek_exact_bytes(&mut self, buf: &mut [u8]) -> Result<(), ZByteIoError> {
-        (*self).peek_exact_bytes(buf)
-    }
-
-    fn z_seek(&mut self, from: ZSeekFrom) -> Result<u64, ZByteIoError> {
-        (*self).z_seek(from)
-    }
-
-    fn is_eof(&mut self) -> Result<bool, ZByteIoError> {
-        (*self).is_eof()
-    }
-
-    fn z_position(&mut self) -> Result<u64, ZByteIoError> {
-        (*self).z_position()
-    }
-
-    fn read_remaining(&mut self, sink: &mut Vec<u8>) -> Result<usize, ZByteIoError> {
-        (*self).read_remaining(sink)
+impl<R: Read + Seek, const BUFFER_SIZE: usize> Seek for BufReader<R, BUFFER_SIZE> {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
+        let pos = self.reader.seek(pos)?;
+        self.pos = 0;
+        self.filled = 0;
+        Ok(pos)
     }
 }

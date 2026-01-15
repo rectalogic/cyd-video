@@ -9,12 +9,15 @@
 
 use core::ops::DerefMut;
 use cyd_player::error::Error;
-#[cfg(feature = "mjpeg")]
-use cyd_player::video::mjpeg;
-#[cfg(feature = "rgb")]
-use cyd_player::video::rgb;
-#[cfg(feature = "yuv")]
-use cyd_player::video::yuv;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "yuv")] {
+        use cyd_player::video::yuv;
+    } else if #[cfg(feature = "rgb")] {
+        use cyd_player::video::rgb;
+    } else if #[cfg(feature = "mjpeg")] {
+        use cyd_player::video::mjpeg;
+    }
+}
 
 use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
@@ -66,43 +69,44 @@ fn main() -> ! {
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
 
-    #[cfg(feature = "mjpeg")]
-    if let Err(e) = sdcard.read_file(
-        "video.mjp",
-        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
-            cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
-                file,
-                display.deref_mut(),
-            )
-        },
-    ) {
-        display.message(format_args!("{e:?}"));
-    }
-
-    #[cfg(feature = "yuv")]
-    if let Err(e) = sdcard.read_file(
-        "video.yuv",
-        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
-            cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
-                file,
-                display.deref_mut(),
-            )
-        },
-    ) {
-        display.message(format_args!("{e:?}"));
-    }
-
-    #[cfg(feature = "rgb")]
-    if let Err(e) = sdcard.read_file(
-        "video.rgb",
-        |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
-            cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
-                file,
-                display.deref_mut(),
-            )
-        },
-    ) {
-        display.message(format_args!("{e:?}"));
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "yuv")] {
+            if let Err(e) = sdcard.read_file(
+                "video.yuv",
+                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+                    cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                        file,
+                        display.deref_mut(),
+                    )
+                },
+            ) {
+                display.message(format_args!("{e:?}"));
+            }
+        } else if #[cfg(feature = "rgb")] {
+            if let Err(e) = sdcard.read_file(
+                "video.rgb",
+                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+                    cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
+                        file,
+                        display.deref_mut(),
+                    )
+                },
+            ) {
+                display.message(format_args!("{e:?}"));
+            }
+        } else if #[cfg(feature = "mjpeg")] {
+            if let Err(e) = sdcard.read_file(
+                "video.mjp",
+                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _>> {
+                    cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
+                        file,
+                        display.deref_mut(),
+                    )
+                },
+            ) {
+                display.message(format_args!("{e:?}"));
+            }
+        }
     }
 
     unreachable!();
