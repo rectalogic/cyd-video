@@ -1,4 +1,8 @@
-use core::{cell::RefCell, convert::Infallible, fmt};
+use core::{
+    cell::{Cell, RefCell},
+    convert::Infallible,
+    fmt,
+};
 
 use alloc::vec;
 
@@ -155,40 +159,45 @@ impl<'a> JpegDrawable<'a> {
         })
     }
 
-    fn render<D>(&self, target: &mut D) -> Result<(), Error<Infallible, tjpgdec_rs::Error>>
+    fn render<D>(&self, target: &mut D) -> Result<(), D::Error>
     where
         D: DrawTarget<Color = Rgb565>,
     {
+        let display_error: Cell<Option<D::Error>> = Cell::new(None);
         let mut decoder = self.decoder.borrow_mut();
         let mcu_size = decoder.mcu_buffer_size();
         let work_size = decoder.work_buffer_size();
         let mut mcu_buffer = vec![0i16; mcu_size];
         let mut work_buffer = vec![0u8; work_size];
-        decoder
-            .decompress(
-                self.jpeg_data,
-                0,
-                &mut mcu_buffer,
-                &mut work_buffer,
-                &mut |_decoder, bitmap, jpeg_rect| {
-                    let target_rect = GraphicsRectangle::with_corners(
-                        Point::new(jpeg_rect.left as i32, jpeg_rect.top as i32),
-                        Point::new(jpeg_rect.right as i32, jpeg_rect.bottom as i32),
-                    );
-                    let pixels = bitmap
-                        .chunks_exact(3)
-                        .map(|pixel| Rgb565::new(pixel[0] >> 3, pixel[1] >> 2, pixel[2] >> 3));
-                    // We can't return custom errors from the output function
-                    // https://docs.rs/tjpgdec-rs/0.4.0/tjpgdec_rs/type.OutputCallback.html
-                    if target.fill_contiguous(&target_rect, pixels).is_err() {
-                        // D::Error doesn't implement Debug
-                        log::error!("display fill error");
-                        return Ok(false);
-                    }
-                    Ok(true)
-                },
-            )
-            .map_err(Error::DecodeErrors)?;
+        if let Err(e) = decoder.decompress(
+            self.jpeg_data,
+            0,
+            &mut mcu_buffer,
+            &mut work_buffer,
+            &mut |_decoder, bitmap, jpeg_rect| {
+                let target_rect = GraphicsRectangle::with_corners(
+                    Point::new(jpeg_rect.left as i32, jpeg_rect.top as i32),
+                    Point::new(jpeg_rect.right as i32, jpeg_rect.bottom as i32),
+                );
+                let pixels = bitmap
+                    .chunks_exact(3)
+                    .map(|pixel| Rgb565::new(pixel[0] >> 3, pixel[1] >> 2, pixel[2] >> 3));
+                // We can't return custom errors from the output function
+                // https://docs.rs/tjpgdec-rs/0.4.0/tjpgdec_rs/type.OutputCallback.html
+                if let Err(e) = target.fill_contiguous(&target_rect, pixels) {
+                    display_error.set(Some(e));
+                    return Ok(false);
+                }
+                Ok(true)
+            },
+        ) {
+            log::error!("jpeg decode error: {e:?}");
+            // Have to return some kind of DisplayError
+            return Err(DisplayError::InvalidFormatError);
+        }
+        if let Some(e) = display_error.take() {
+            return Err(e);
+        }
         Ok(())
     }
 }
@@ -200,12 +209,7 @@ impl ImageDrawable for JpegDrawable<'_> {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        if let Err(e) = self.render(target) {
-            log::error!("render error: {e:?}");
-            // Closest error that makes sense?
-            return Err(DisplayError::InvalidFormatError);
-        }
-        Ok(())
+        self.render(target)
     }
 
     fn draw_sub_image<D>(
