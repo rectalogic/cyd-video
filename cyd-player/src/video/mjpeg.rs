@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{cell::RefCell, convert::Infallible, fmt};
 
 use alloc::vec;
 
@@ -7,10 +7,11 @@ use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
 use display_interface::DisplayError;
 use embedded_graphics::{
     Drawable,
+    geometry::Point,
     image::{Image, ImageDrawable},
     pixelcolor::Rgb565,
     prelude::*,
-    primitives::Rectangle,
+    primitives::Rectangle as GraphicsRectangle,
 };
 use embedded_io::{ErrorType, Read, ReadExactError, Seek, SeekFrom};
 use tjpgdec_rs::{JpegDecoder, MemoryPool, RECOMMENDED_POOL_SIZE};
@@ -112,7 +113,7 @@ where
             Err(ReadExactError::UnexpectedEof) => {
                 self.reader
                     .seek(SeekFrom::Start(MjpegHeader::header_size() as u64))
-                    .map_err(|e| Error::ReadError(e))?;
+                    .map_err(Error::ReadError)?;
                 return Err(Error::LoopEof);
             }
             Err(e) => return Err(Error::ReadExactError(e)),
@@ -125,16 +126,14 @@ where
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
     ) -> Result<(), Error<R::Error, Self::DecoderError>> {
-        image
-            .draw(&mut display.color_converted())
-            .map_err(Error::DisplayError)?;
+        image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
 }
 
 pub struct JpegDrawable<'a> {
     jpeg_data: &'a [u8],
-    decoder: JpegDecoder<'a>,
+    decoder: RefCell<JpegDecoder<'a>>,
 }
 
 impl<'a> JpegDrawable<'a> {
@@ -150,26 +149,42 @@ impl<'a> JpegDrawable<'a> {
         decoder
             .prepare(jpeg_data, &mut pool)
             .map_err(Error::DecodeErrors)?;
-        Ok(Self { jpeg_data, decoder })
+        Ok(Self {
+            jpeg_data,
+            decoder: RefCell::new(decoder),
+        })
     }
 
-    fn render<E>(&mut self) -> Result<(), Error<E, tjpgdec_rs::Error>>
+    fn render<D>(&self, target: &mut D) -> Result<(), Error<Infallible, tjpgdec_rs::Error>>
     where
-        E: fmt::Debug,
+        D: DrawTarget<Color = Rgb565>,
     {
-        let mcu_size = self.decoder.mcu_buffer_size();
-        let work_size = self.decoder.work_buffer_size();
+        let mut decoder = self.decoder.borrow_mut();
+        let mcu_size = decoder.mcu_buffer_size();
+        let work_size = decoder.work_buffer_size();
         let mut mcu_buffer = vec![0i16; mcu_size];
         let mut work_buffer = vec![0u8; work_size];
-        self.decoder
+        decoder
             .decompress(
                 self.jpeg_data,
                 0,
                 &mut mcu_buffer,
                 &mut work_buffer,
-                &mut |_decoder, _bitmap, rect| {
-                    // Process pixel data
-
+                &mut |_decoder, bitmap, jpeg_rect| {
+                    let target_rect = GraphicsRectangle::with_corners(
+                        Point::new(jpeg_rect.left as i32, jpeg_rect.top as i32),
+                        Point::new(jpeg_rect.right as i32, jpeg_rect.bottom as i32),
+                    );
+                    let pixels = bitmap
+                        .chunks_exact(3)
+                        .map(|pixel| Rgb565::new(pixel[0] >> 3, pixel[1] >> 2, pixel[2] >> 3));
+                    // We can't return custom errors from the output function
+                    // https://docs.rs/tjpgdec-rs/0.4.0/tjpgdec_rs/type.OutputCallback.html
+                    if target.fill_contiguous(&target_rect, pixels).is_err() {
+                        // D::Error doesn't implement Debug
+                        log::error!("display fill error");
+                        return Ok(false);
+                    }
                     Ok(true)
                 },
             )
@@ -181,15 +196,23 @@ impl<'a> JpegDrawable<'a> {
 impl ImageDrawable for JpegDrawable<'_> {
     type Color = Rgb565;
 
-    fn draw<D>(&self, target: &mut D) -> Result<(), D::Error>
+    fn draw<D>(&self, target: &mut D) -> Result<(), <D as DrawTarget>::Error>
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        //target.fill_contiguous(&self.bounding_box(), self.pixels())
-        todo!()
+        if let Err(e) = self.render(target) {
+            log::error!("render error: {e:?}");
+            // Closest error that makes sense?
+            return Err(DisplayError::InvalidFormatError);
+        }
+        Ok(())
     }
 
-    fn draw_sub_image<D>(&self, target: &mut D, area: &Rectangle) -> Result<(), D::Error>
+    fn draw_sub_image<D>(
+        &self,
+        target: &mut D,
+        area: &GraphicsRectangle,
+    ) -> Result<(), <D as DrawTarget>::Error>
     where
         D: DrawTarget<Color = Self::Color>,
     {
@@ -199,7 +222,8 @@ impl ImageDrawable for JpegDrawable<'_> {
 
 impl OriginDimensions for JpegDrawable<'_> {
     fn size(&self) -> Size {
-        Size::new(self.decoder.width() as u32, self.decoder.height() as u32)
+        let decoder = self.decoder.borrow();
+        Size::new(decoder.width() as u32, decoder.height() as u32)
     }
 }
 
