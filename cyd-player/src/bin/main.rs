@@ -9,12 +9,15 @@
 
 use core::ops::DerefMut;
 use cyd_player::error::Error;
-#[cfg(feature = "mjpeg")]
-use cyd_player::video::mjpeg;
-#[cfg(feature = "rgb")]
-use cyd_player::video::rgb;
-#[cfg(feature = "yuv")]
-use cyd_player::video::yuv;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "yuv")] {
+        use cyd_player::video::yuv;
+    } else if #[cfg(feature = "rgb")] {
+        use cyd_player::video::rgb;
+    } else if #[cfg(feature = "mjpeg")] {
+        use cyd_player::video::mjpeg;
+    }
+}
 
 use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
