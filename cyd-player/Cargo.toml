@@ -9,7 +9,7 @@ name = "cyd-video"
 path = "./src/bin/main.rs"
 
 [features]
-default = ["log", "mjpeg"]
+default = ["mjpeg"]
 alloc = ["dep:esp-alloc"]
 log = [
     "esp-hal/log-04",

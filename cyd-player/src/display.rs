@@ -27,8 +27,7 @@ use esp_hal::{
     },
     time::Rate,
 };
-use ili9341::{DisplaySize240x320, Ili9341, Orientation};
-use log::error;
+use ili9341::{DisplaySize240x320, FrameRate, FrameRateClockDivision, Ili9341, Orientation};
 
 type InternalDisplay<'a> = Ili9341<
     SPIInterface<ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
@@ -78,6 +77,7 @@ impl<'a> Display<'a> {
             Orientation::Landscape,
             DisplaySize240x320,
         )?;
+        display.normal_mode_frame_rate(FrameRateClockDivision::Fosc, FrameRate::FrameRate61)?;
 
         let _backlight = Output::new(peripherals.gpio21, Level::High, OutputConfig::default());
         display.clear(Rgb565::BLACK)?;
@@ -88,7 +88,7 @@ impl<'a> Display<'a> {
     pub fn message(&mut self, args: fmt::Arguments) -> ! {
         let mut buf = [0u8; 256];
         let message = format_no_std::show(&mut buf, args).unwrap();
-        error!("{message}");
+        log::error!("{message}");
         self.display.clear(Rgb565::BLACK).unwrap();
         let style = MonoTextStyle::new(&FONT_6X10, Rgb565::WHITE);
         Text::with_baseline(message, Point::default(), style, Baseline::Top)
