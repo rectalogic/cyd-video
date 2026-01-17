@@ -1,9 +1,11 @@
 use core::{
     cell::{Cell, RefCell},
     fmt,
+    ops::Range,
 };
 
 use alloc::vec;
+use memchr::memmem;
 
 use crate::{error::Error, video::decoder::Decoder};
 use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
@@ -16,7 +18,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::Rectangle as GraphicsRectangle,
 };
-use embedded_io::{ErrorType, Read, ReadExactError, Seek, SeekFrom};
+use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
 use tjpgdec_rs::{JpegDecoder, MemoryPool, RECOMMENDED_POOL_SIZE};
 extern crate alloc;
 
@@ -25,59 +27,26 @@ where
     R: Read + Seek,
 {
     header: MjpegHeader,
-    reader: BufReader<R, 1024>,
+    reader: R,
+    soi_finder: memmem::Finder<'static>,
+    eoi_finder: memmem::Finder<'static>,
+    decode_buffer_valid: Range<usize>,
 }
 
 // 15K buffer to read compressed JPG 320x240 image plus pool
 pub const DECODE_SIZE: usize = (15 * 1024) + RECOMMENDED_POOL_SIZE;
 
 mod markers {
-    pub const SOI: (u8, u8) = (0xFF, 0xD8);
-    pub const EOI: (u8, u8) = (0xFF, 0xD9);
+    pub const SOI: &[u8; 2] = &[0xFF, 0xD8];
+    pub const EOI: &[u8; 2] = &[0xFF, 0xD9];
 }
 
-impl<R> MjpegDecoder<R>
-where
-    R: Read + Seek,
-{
-    fn read_jpeg<'a>(
-        &mut self,
-        jpeg_data: &'a mut [u8],
-    ) -> Result<&'a [u8], ReadExactError<R::Error>> {
-        // First, find the SOI marker
-        let mut prev_byte = 0u8;
-        loop {
-            let mut byte = [0u8];
-            self.reader.read_exact(&mut byte)?;
-
-            if prev_byte == markers::SOI.0 && byte[0] == markers::SOI.1 {
-                break;
-            }
-            prev_byte = byte[0];
-        }
-
-        // Start copying data into jpeg_data, beginning with SOI
-        jpeg_data[0] = markers::SOI.0;
-        jpeg_data[1] = markers::SOI.1;
-        let mut pos = 2;
-
-        prev_byte = markers::SOI.1;
-
-        // Copy data until we find EOI
-        loop {
-            let mut byte = [0u8];
-            self.reader.read_exact(&mut byte)?;
-
-            jpeg_data[pos] = byte[0];
-            pos += 1;
-
-            if prev_byte == markers::EOI.0 && byte[0] == markers::EOI.1 {
-                break;
-            }
-            prev_byte = byte[0];
-        }
-
-        Ok(&jpeg_data[..pos])
+impl<R: Read + Seek> MjpegDecoder<R> {
+    fn find_jpeg(&self, buffer: &[u8]) -> Option<Range<usize>> {
+        let soi_pos = self.soi_finder.find(buffer)?;
+        let eoi_pos = self.eoi_finder.find(&buffer[soi_pos..])?;
+        let eoi_absolute = soi_pos + eoi_pos + markers::EOI.len();
+        Some(soi_pos..eoi_absolute)
     }
 }
 
@@ -96,7 +65,10 @@ where
 
         Ok(Self {
             header,
-            reader: BufReader::<_, 1024>::new(reader),
+            reader,
+            soi_finder: memmem::Finder::new(markers::SOI),
+            eoi_finder: memmem::Finder::new(markers::EOI),
+            decode_buffer_valid: 0..0,
         })
     }
 
@@ -111,17 +83,31 @@ where
         let [pool_buffer, decode_buffer] = buffer
             .get_disjoint_mut([0..RECOMMENDED_POOL_SIZE, RECOMMENDED_POOL_SIZE..DECODE_SIZE])
             .unwrap();
-        let jpeg_data = match self.read_jpeg(decode_buffer) {
-            Ok(data) => data,
-            Err(ReadExactError::UnexpectedEof) => {
-                self.reader
-                    .seek(SeekFrom::Start(MjpegHeader::header_size() as u64))
-                    .map_err(Error::ReadError)?;
-                return Err(Error::LoopEof);
-            }
-            Err(e) => return Err(Error::ReadExactError(e)),
-        };
-        JpegDrawable::new(pool_buffer, jpeg_data)
+        // Shift valid contents to beginning
+        if self.decode_buffer_valid.start > 0 {
+            decode_buffer.copy_within(self.decode_buffer_valid.clone(), 0);
+            self.decode_buffer_valid = 0..self.decode_buffer_valid.len();
+        }
+        let decode_buffer_len = decode_buffer.len();
+        // Read into remaining unused buffer
+        let read_len = self
+            .reader
+            .read(&mut decode_buffer[self.decode_buffer_valid.end..decode_buffer_len])
+            .map_err(Error::ReadError)?;
+        self.decode_buffer_valid.end += read_len;
+        if let Some(jpeg_range) = self.find_jpeg(&decode_buffer[self.decode_buffer_valid.clone()]) {
+            let end = jpeg_range.end;
+            let jpeg_data = &decode_buffer[jpeg_range];
+            self.decode_buffer_valid = end..self.decode_buffer_valid.end;
+            JpegDrawable::new(pool_buffer, jpeg_data)
+        } else {
+            //XXX handle EOF - what if read_len was nonzero?
+            self.decode_buffer_valid = 0..0;
+            self.reader
+                .seek(SeekFrom::Start(MjpegHeader::header_size() as u64))
+                .map_err(Error::ReadError)?;
+            Err(Error::LoopEof)
+        }
     }
 
     fn render<'a>(
@@ -226,76 +212,5 @@ impl OriginDimensions for JpegDrawable<'_> {
     fn size(&self) -> Size {
         let decoder = self.decoder.borrow();
         Size::new(decoder.width() as u32, decoder.height() as u32)
-    }
-}
-
-struct BufReader<R, const BUFFER_SIZE: usize> {
-    buffer: [u8; BUFFER_SIZE],
-    reader: R,
-    pos: usize,    // Current position in buffer
-    filled: usize, // Number of valid bytes in buffer
-}
-
-impl<R: Read, const BUFFER_SIZE: usize> BufReader<R, BUFFER_SIZE> {
-    fn new(reader: R) -> Self {
-        Self {
-            buffer: [0; BUFFER_SIZE],
-            reader,
-            pos: 0,
-            filled: 0,
-        }
-    }
-
-    /// Returns the number of bytes available in the internal buffer
-    fn available(&self) -> usize {
-        self.filled - self.pos
-    }
-
-    /// Fill the buffer by reading from the underlying reader
-    fn fill_buf(&mut self) -> Result<(), R::Error> {
-        if self.pos >= self.filled {
-            // Buffer is exhausted, refill it
-            self.filled = self.reader.read(&mut self.buffer)?;
-            self.pos = 0;
-        }
-        Ok(())
-    }
-}
-
-impl<R: Read, const BUFFER_SIZE: usize> ErrorType for BufReader<R, BUFFER_SIZE> {
-    type Error = R::Error;
-}
-
-impl<R: Read, const BUFFER_SIZE: usize> Read for BufReader<R, BUFFER_SIZE> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        // If the requested read is larger than our buffer, and our buffer is empty,
-        // bypass buffering and read directly
-        if buf.len() >= BUFFER_SIZE && self.available() == 0 {
-            return self.reader.read(buf);
-        }
-
-        // Ensure we have data in our buffer
-        self.fill_buf()?;
-
-        // Copy from internal buffer to output buffer
-        let available = self.available();
-        if available == 0 {
-            return Ok(0); // EOF
-        }
-
-        let to_copy = available.min(buf.len());
-        buf[..to_copy].copy_from_slice(&self.buffer[self.pos..self.pos + to_copy]);
-        self.pos += to_copy;
-
-        Ok(to_copy)
-    }
-}
-
-impl<R: Read + Seek, const BUFFER_SIZE: usize> Seek for BufReader<R, BUFFER_SIZE> {
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64, Self::Error> {
-        let pos = self.reader.seek(pos)?;
-        self.pos = 0;
-        self.filled = 0;
-        Ok(pos)
     }
 }

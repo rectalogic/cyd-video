@@ -16,7 +16,8 @@ log = [
     "esp-hal/log-04",
     "esp-bootloader-esp-idf/log-04",
     "esp-println/log-04",
-    "embedded-sdmmc/log"
+    "embedded-sdmmc/log",
+    "memchr/logging",
 ]
 mjpeg = ["dep:tjpgdec-rs", "alloc"]
 yuv = []
@@ -50,6 +51,7 @@ format_no_std = "1.2.0"
 cfg-if = "1.0"
 cyd-encoder = { path = "../cyd-encoder", default-features = false }
 tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"], optional = true }
+memchr = { version = "2.7.6", default-features = false }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.
