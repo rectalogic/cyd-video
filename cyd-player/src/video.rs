@@ -1,8 +1,7 @@
-use core::ops::DerefMut;
+use core::{fmt, ops::DerefMut};
 
 use crate::{error::Error, video::decoder::Decoder};
 use cyd_encoder::format::FormatHeader;
-use display_interface::DisplayError;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
 use esp_hal::{
@@ -20,13 +19,15 @@ pub mod yuv;
 
 const CENTER: Point = Point::new(320 / 2, 240 / 2);
 
+#[allow(clippy::type_complexity)]
 pub fn play<R, DT, const HEADER_SIZE: usize, F, const DECODE_SIZE: usize, D>(
     reader: R,
     mut display: &mut DT,
-) -> Result<(), Error<R::Error, D::DecoderError>>
+) -> Result<(), Error<R::Error, D::DecoderError, DT::Error>>
 where
     R: Read + Seek,
-    DT: DrawTarget<Color = Rgb565, Error = DisplayError>,
+    DT: DrawTarget<Color = Rgb565>,
+    DT::Error: fmt::Debug,
     F: FormatHeader<HEADER_SIZE>,
     D: Decoder<R, DT, HEADER_SIZE, F, DECODE_SIZE>,
 {

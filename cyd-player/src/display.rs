@@ -28,7 +28,7 @@ use mipidsi::{
     Builder,
     interface::SpiInterface,
     models::{ILI9341Rgb565, Model},
-    options::{Orientation, Rotation},
+    options::{ColorOrder, Orientation, Rotation},
 };
 
 type InternalDisplay<'a> = mipidsi::Display<
@@ -81,7 +81,12 @@ impl<'a> Display<'a> {
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.0,
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.1,
             )
-            .orientation(Orientation::new().rotate(Rotation::Deg90))
+            .color_order(ColorOrder::Bgr)
+            .orientation(
+                Orientation::new()
+                    .rotate(Rotation::Deg270)
+                    .flip_horizontal(),
+            )
             .init(&mut Delay::new())
             .expect("display builder init");
 

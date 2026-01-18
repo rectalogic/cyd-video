@@ -9,7 +9,6 @@ use memchr::memmem;
 
 use crate::{error::Error, video::decoder::Decoder};
 use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
-use display_interface::DisplayError;
 use embedded_graphics::{
     Drawable,
     geometry::Point,
@@ -53,7 +52,8 @@ impl<R: Read + Seek> MjpegDecoder<R> {
 impl<R, D> Decoder<R, D, 1, MjpegHeader, { DECODE_SIZE }> for MjpegDecoder<R>
 where
     R: Read + Seek,
-    D: DrawTarget<Color = Rgb565, Error = DisplayError>,
+    D: DrawTarget<Color = Rgb565>,
+    D::Error: fmt::Debug,
 {
     type DecoderError = tjpgdec_rs::Error;
     type ImageDrawable<'a> = JpegDrawable<'a>;
@@ -79,7 +79,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError>> {
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>> {
         let [pool_buffer, decode_buffer] = buffer
             .get_disjoint_mut([0..RECOMMENDED_POOL_SIZE, RECOMMENDED_POOL_SIZE..DECODE_SIZE])
             .unwrap();
@@ -114,7 +114,7 @@ where
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error, Self::DecoderError>> {
+    ) -> Result<(), Error<R::Error, Self::DecoderError, D::Error>> {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
@@ -126,12 +126,13 @@ pub struct JpegDrawable<'a> {
 }
 
 impl<'a> JpegDrawable<'a> {
-    fn new<E>(
+    fn new<E, D>(
         pool_buffer: &'a mut [u8],
         jpeg_data: &'a [u8],
-    ) -> Result<Self, Error<E, tjpgdec_rs::Error>>
+    ) -> Result<Self, Error<E, tjpgdec_rs::Error, D>>
     where
         E: fmt::Debug,
+        D: fmt::Debug,
     {
         let mut pool = MemoryPool::new(pool_buffer);
         let mut decoder = JpegDecoder::new();
@@ -191,7 +192,7 @@ impl ImageDrawable for JpegDrawable<'_> {
 
     fn draw<D>(&self, target: &mut D) -> Result<(), <D as DrawTarget>::Error>
     where
-        D: DrawTarget<Color = Self::Color>,
+        D: DrawTarget<Color = Rgb565>,
     {
         self.render(target)
     }
@@ -202,7 +203,7 @@ impl ImageDrawable for JpegDrawable<'_> {
         area: &GraphicsRectangle,
     ) -> Result<(), <D as DrawTarget>::Error>
     where
-        D: DrawTarget<Color = Self::Color>,
+        D: DrawTarget<Color = Rgb565>,
     {
         self.draw(&mut target.translated(-area.top_left).clipped(area))
     }

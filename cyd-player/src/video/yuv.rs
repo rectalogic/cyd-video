@@ -1,6 +1,6 @@
 use crate::{error::Error, video::decoder::Decoder};
+use core::fmt;
 use cyd_encoder::format::{FormatHeader, yuv::YuvHeader};
-use display_interface::DisplayError;
 use embedded_graphics::{
     image::{Image, ImageDrawable},
     pixelcolor::Rgb565,
@@ -20,7 +20,8 @@ pub const DECODE_SIZE: usize = (YuvHeader::MAX_WIDTH * YuvHeader::MAX_HEIGHT)
 impl<R, D> Decoder<R, D, 5, YuvHeader, { DECODE_SIZE }> for YuvDecoder<R>
 where
     R: Read + Seek,
-    D: DrawTarget<Color = Rgb565, Error = DisplayError>,
+    D: DrawTarget<Color = Rgb565>,
+    D::Error: fmt::Debug,
 {
     type DecoderError = R::Error;
     type ImageDrawable<'a> = Pixels<'a>;
@@ -39,7 +40,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError>> {
+    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>> {
         let width = self.header.width() as u32;
         let height = self.header.height() as u32;
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
@@ -61,7 +62,7 @@ where
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error, Self::DecoderError>> {
+    ) -> Result<(), Error<R::Error, Self::DecoderError, D::Error>> {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
