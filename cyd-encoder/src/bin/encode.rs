@@ -15,7 +15,7 @@ struct Args {
     #[argh(option, default = "\"mjpeg\".to_string()")]
     /// video format (mjpeg, rgb or yuv)
     format: String,
-    #[argh(option, default = "25u8")]
+    #[argh(option, default = "15u8")]
     /// frames per second
     fps: u8,
     #[argh(option)]
@@ -59,8 +59,10 @@ fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
             "-an",
             "-vf",
             &filter,
+            "-pix_fmt",
+            "yuv420p",
             "-q:v",
-            "7",
+            "10",
             "-f",
             "mjpeg",
             "-y",
