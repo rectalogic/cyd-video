@@ -47,17 +47,20 @@ fn main() -> ! {
     #[cfg(feature = "alloc")]
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
-    let mut display = cyd_player::display::Display::new(cyd_player::display::Peripherals {
-        spi2: peripherals.SPI2,
-        gpio2: peripherals.GPIO2,
-        gpio4: peripherals.GPIO4,
-        gpio12: peripherals.GPIO12,
-        gpio13: peripherals.GPIO13,
-        gpio14: peripherals.GPIO14,
-        gpio15: peripherals.GPIO15,
-        gpio21: peripherals.GPIO21,
-    })
-    .unwrap();
+    let mut display_buffer = [0u8; 512];
+    let mut display = cyd_player::display::Display::new(
+        &mut display_buffer,
+        cyd_player::display::Peripherals {
+            spi2: peripherals.SPI2,
+            gpio2: peripherals.GPIO2,
+            gpio4: peripherals.GPIO4,
+            gpio12: peripherals.GPIO12,
+            gpio13: peripherals.GPIO13,
+            gpio14: peripherals.GPIO14,
+            gpio15: peripherals.GPIO15,
+            gpio21: peripherals.GPIO21,
+        },
+    );
     let mut sdcard = match cyd_player::sdcard::SdCard::new(cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         gpio5: peripherals.GPIO5,

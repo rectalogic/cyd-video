@@ -1,13 +1,10 @@
 #![deny(clippy::large_stack_frames)]
 
 use core::{
-    convert::Infallible,
     fmt,
     ops::{Deref, DerefMut},
 };
 
-use crate::error::Error;
-use display_interface_spi::SPIInterface;
 use embedded_graphics::{
     draw_target::DrawTarget,
     mono_font::{MonoTextStyle, ascii::FONT_6X10},
@@ -27,10 +24,16 @@ use esp_hal::{
     },
     time::Rate,
 };
-use ili9341::{DisplaySize240x320, FrameRate, FrameRateClockDivision, Ili9341, Orientation};
+use mipidsi::{
+    Builder,
+    interface::SpiInterface,
+    models::{ILI9341Rgb565, Model},
+    options::{Orientation, Rotation},
+};
 
-type InternalDisplay<'a> = Ili9341<
-    SPIInterface<ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
+type InternalDisplay<'a> = mipidsi::Display<
+    SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
+    ILI9341Rgb565,
     Output<'a>,
 >;
 
@@ -50,13 +53,14 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible, Infallible>> {
+    pub fn new(display_buffer: &'a mut [u8], peripherals: Peripherals) -> Self {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
                 .with_frequency(Rate::from_mhz(40))
                 .with_mode(SpiMode::_0),
-        )?
+        )
+        .expect("display SPI")
         //CLK
         .with_sck(peripherals.gpio14)
         //DIN
@@ -65,24 +69,26 @@ impl<'a> Display<'a> {
 
         let dc = Output::new(peripherals.gpio2, Level::Low, OutputConfig::default());
         let cs = Output::new(peripherals.gpio15, Level::Low, OutputConfig::default());
-        let reset = Output::new(peripherals.gpio4, Level::Low, OutputConfig::default());
+        let mut reset = Output::new(peripherals.gpio4, Level::Low, OutputConfig::default());
+        reset.set_high();
 
         let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).expect("infallible");
-        let interface = SPIInterface::new(spi_dev, dc);
+        let interface = SpiInterface::new(spi_dev, dc, display_buffer);
 
-        let mut display = Ili9341::new(
-            interface,
-            reset,
-            &mut Delay::new(),
-            Orientation::Landscape,
-            DisplaySize240x320,
-        )?;
-        display.normal_mode_frame_rate(FrameRateClockDivision::Fosc, FrameRate::FrameRate61)?;
+        let mut display = Builder::new(ILI9341Rgb565, interface)
+            .reset_pin(reset)
+            .display_size(
+                ILI9341Rgb565::FRAMEBUFFER_SIZE.0,
+                ILI9341Rgb565::FRAMEBUFFER_SIZE.1,
+            )
+            .orientation(Orientation::new().rotate(Rotation::Deg90))
+            .init(&mut Delay::new())
+            .expect("display builder init");
 
         let _backlight = Output::new(peripherals.gpio21, Level::High, OutputConfig::default());
-        display.clear(Rgb565::BLACK)?;
+        display.clear(Rgb565::BLACK).expect("display clear");
 
-        Ok(Self { display })
+        Self { display }
     }
 
     pub fn message(&mut self, args: fmt::Arguments) -> ! {
