@@ -2,7 +2,10 @@ use crate::error::Error;
 use core::{convert::Infallible, fmt};
 use embedded_hal::spi::SpiBus;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use embedded_sdmmc::{SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager};
+use embedded_sdmmc::{
+    DirEntry, SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager,
+    filesystem::ToShortFileName,
+};
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -64,14 +67,38 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub fn read_file<F, R, RE, DE>(
+    pub fn iterate_dir<N, F>(
         &mut self,
-        filename: &str,
+        dirname: Option<N>,
+        f: F,
+    ) -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>
+    where
+        N: ToShortFileName,
+        F: FnMut(&DirEntry),
+    {
+        let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let directory = volume.open_root_dir()?;
+        if let Some(dirname) = dirname {
+            let subdir = directory.open_dir(dirname)?;
+            subdir.iterate_dir(f)?;
+            subdir.close()?;
+        } else {
+            directory.iterate_dir(f)?;
+        }
+        directory.close()?;
+        volume.close()?;
+        Ok(())
+    }
+
+    pub fn read_file<N, F, R, RE, DE>(
+        &mut self,
+        filename: N,
         f: F,
     ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>
     where
         RE: fmt::Debug,
         DE: fmt::Debug,
+        N: ToShortFileName,
         F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;

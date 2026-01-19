@@ -8,6 +8,7 @@
 #![deny(clippy::large_stack_frames)]
 
 use core::ops::DerefMut;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "yuv")] {
         use cyd_player::video::yuv;
@@ -18,6 +19,7 @@ cfg_if::cfg_if! {
     }
 }
 
+use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 
@@ -68,6 +70,31 @@ fn main() -> ! {
     }) {
         Ok(sdcard) => sdcard,
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
+    };
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "yuv")] {
+            let suffix = "YUV";
+        } else if #[cfg(feature = "rgb")] {
+            let suffix = "RGB";
+        } else if #[cfg(feature = "mjpeg")] {
+            let suffix = "MJP";
+        }
+    }
+
+    const MAX_FILES: usize = 5;
+    let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
+    let mut index: usize = 0;
+    if let Err(e) = sdcard.iterate_dir(Some(suffix), |d| {
+        if index < MAX_FILES
+            && !d.attributes.is_directory()
+            && d.name.extension() == suffix.as_bytes()
+        {
+            filenames[index] = Some(d.name);
+            index += 1;
+        }
+    }) {
+        display.message(format_args!("directory {suffix} error: {e:?}"));
     };
 
     cfg_if::cfg_if! {
