@@ -18,7 +18,7 @@ use embedded_graphics::{
     primitives::Rectangle as GraphicsRectangle,
 };
 use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
-use tjpgdec_rs::{JpegDecoder, MemoryPool, RECOMMENDED_POOL_SIZE};
+use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool};
 extern crate alloc;
 
 pub struct MjpegDecoder<R>
@@ -33,7 +33,7 @@ where
 }
 
 // 15K buffer to read compressed JPG 320x240 image plus pool
-pub const DECODE_SIZE: usize = (15 * 1024) + RECOMMENDED_POOL_SIZE;
+pub const DECODE_SIZE: usize = (15 * 1024) + MINIMUM_POOL_SIZE;
 
 mod markers {
     pub const SOI: &[u8; 2] = &[0xFF, 0xD8];
@@ -81,7 +81,7 @@ where
         buffer: &'a mut [u8; DECODE_SIZE],
     ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>> {
         let [pool_buffer, decode_buffer] = buffer
-            .get_disjoint_mut([0..RECOMMENDED_POOL_SIZE, RECOMMENDED_POOL_SIZE..DECODE_SIZE])
+            .get_disjoint_mut([0..MINIMUM_POOL_SIZE, MINIMUM_POOL_SIZE..DECODE_SIZE])
             .unwrap();
         // Shift valid contents to beginning
         if self.decode_buffer_valid.start > 0 {
