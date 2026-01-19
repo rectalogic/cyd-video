@@ -1,6 +1,6 @@
 use core::{fmt, ops::DerefMut};
 
-use crate::{error::Error, video::decoder::Decoder};
+use crate::{display::CENTER, error::Error, video::decoder::Decoder};
 use cyd_encoder::format::FormatHeader;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
@@ -16,8 +16,6 @@ pub mod mjpeg;
 pub mod rgb;
 #[cfg(feature = "yuv")]
 pub mod yuv;
-
-const CENTER: Point = Point::new(320 / 2, 240 / 2);
 
 #[allow(clippy::type_complexity)]
 pub fn play<R, DT, const HEADER_SIZE: usize, F, const DECODE_SIZE: usize, D>(

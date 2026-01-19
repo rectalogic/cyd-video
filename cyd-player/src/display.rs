@@ -37,6 +37,11 @@ type InternalDisplay<'a> = mipidsi::Display<
     Output<'a>,
 >;
 
+pub const CENTER: Point = Point::new(
+    (ILI9341Rgb565::FRAMEBUFFER_SIZE.1 / 2) as i32,
+    (ILI9341Rgb565::FRAMEBUFFER_SIZE.0 / 2) as i32,
+);
+
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
     pub gpio2: GPIO2<'static>,
