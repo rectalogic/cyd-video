@@ -47,7 +47,7 @@ fn main() -> ! {
     #[cfg(feature = "alloc")]
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
-    let mut display_buffer = [0u8; 512];
+    let mut display_buffer = [0u8; 5 * 1024];
     let mut display = cyd_player::display::Display::new(
         &mut display_buffer,
         cyd_player::display::Peripherals {
