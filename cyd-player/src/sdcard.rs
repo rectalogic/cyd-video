@@ -69,7 +69,7 @@ impl SdCard {
 
     pub fn iterate_dir<N, F>(
         &mut self,
-        dirname: Option<N>,
+        dirname: N,
         f: F,
     ) -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>
     where
@@ -77,32 +77,31 @@ impl SdCard {
         F: FnMut(&DirEntry),
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
-        let directory = volume.open_root_dir()?;
-        if let Some(dirname) = dirname {
-            let subdir = directory.open_dir(dirname)?;
-            subdir.iterate_dir(f)?;
-            subdir.close()?;
-        } else {
-            directory.iterate_dir(f)?;
-        }
+        let root_directory = volume.open_root_dir()?;
+        let directory = root_directory.open_dir(dirname)?;
+        directory.iterate_dir(f)?;
         directory.close()?;
+        root_directory.close()?;
         volume.close()?;
         Ok(())
     }
 
-    pub fn read_file<N, F, R, RE, DE>(
+    pub fn read_file<DN, FN, F, R, RE, DE>(
         &mut self,
-        filename: N,
+        dirname: DN,
+        filename: FN,
         f: F,
     ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>
     where
         RE: fmt::Debug,
         DE: fmt::Debug,
-        N: ToShortFileName,
+        DN: ToShortFileName,
+        FN: ToShortFileName,
         F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
-        let directory = volume.open_root_dir()?;
+        let root_directory = volume.open_root_dir()?;
+        let directory = root_directory.open_dir(dirname)?;
         let mut file = directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly)?;
 
         let result = f(&mut file)?;
@@ -110,6 +109,7 @@ impl SdCard {
         // Close in reverse order
         file.close()?;
         directory.close()?;
+        root_directory.close()?;
         volume.close()?;
 
         Ok(result)

@@ -35,13 +35,7 @@ where
     let frame_duration = Duration::from_micros((1000 * 1000) / decoder.header().fps() as u64);
     let mut buffer = [0u8; DECODE_SIZE];
     loop {
-        let pixels = match decoder.decode_into(&mut buffer) {
-            Ok(pixels) => pixels,
-            Err(Error::LoopEof) => {
-                continue;
-            }
-            Err(e) => return Err(e),
-        };
+        let pixels = decoder.decode_into(&mut buffer)?;
         let image = Image::with_center(&pixels, CENTER);
         if let Some(start) = start {
             let elapsed = start.elapsed();

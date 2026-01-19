@@ -6,7 +6,7 @@ use embedded_graphics::{
     pixelcolor::Rgb565,
     prelude::*,
 };
-use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
+use embedded_io::{Read, ReadExactError, Seek};
 
 pub struct RgbDecoder<R> {
     header: RgbHeader,
@@ -45,10 +45,7 @@ where
         match self.reader.read_exact(buffer) {
             Ok(_) => {}
             Err(ReadExactError::UnexpectedEof) => {
-                self.reader
-                    .seek(SeekFrom::Start(RgbHeader::header_size() as u64))
-                    .map_err(Error::ReadError)?;
-                return Err(Error::LoopEof);
+                return Err(Error::VideoEof);
             }
             Err(ReadExactError::Other(e)) => return Err(Error::ReadError(e)),
         }

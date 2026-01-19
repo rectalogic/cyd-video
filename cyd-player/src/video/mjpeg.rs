@@ -17,7 +17,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::Rectangle as GraphicsRectangle,
 };
-use embedded_io::{Read, ReadExactError, Seek, SeekFrom};
+use embedded_io::{Read, ReadExactError, Seek};
 use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool};
 extern crate alloc;
 
@@ -101,12 +101,7 @@ where
             self.decode_buffer_valid = end..self.decode_buffer_valid.end;
             JpegDrawable::new(pool_buffer, jpeg_data)
         } else {
-            //XXX handle EOF - what if read_len was nonzero?
-            self.decode_buffer_valid = 0..0;
-            self.reader
-                .seek(SeekFrom::Start(MjpegHeader::header_size() as u64))
-                .map_err(Error::ReadError)?;
-            Err(Error::LoopEof)
+            Err(Error::VideoEof)
         }
     }
 

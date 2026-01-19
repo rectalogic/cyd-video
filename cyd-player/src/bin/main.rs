@@ -19,6 +19,7 @@ cfg_if::cfg_if! {
     }
 }
 
+use cyd_player::error::Error;
 use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
@@ -74,68 +75,63 @@ fn main() -> ! {
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "yuv")] {
-            let suffix = "YUV";
+            const SUFFIX: &str = "YUV";
         } else if #[cfg(feature = "rgb")] {
-            let suffix = "RGB";
+            const SUFFIX: &str = "RGB";
         } else if #[cfg(feature = "mjpeg")] {
-            let suffix = "MJP";
+            const SUFFIX: &str= "MJP";
         }
     }
 
     const MAX_FILES: usize = 5;
     let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
     let mut index: usize = 0;
-    if let Err(e) = sdcard.iterate_dir(Some(suffix), |d| {
+    log::info!("Loading dir {SUFFIX}");
+    if let Err(e) = sdcard.iterate_dir(SUFFIX, |d| {
         if index < MAX_FILES
             && !d.attributes.is_directory()
-            && d.name.extension() == suffix.as_bytes()
+            && d.name.extension() == SUFFIX.as_bytes()
         {
+            log::info!("Found {}", d.name);
             filenames[index] = Some(d.name);
             index += 1;
         }
     }) {
-        display.message(format_args!("directory {suffix} error: {e:?}"));
+        display.message(format_args!("directory {SUFFIX} error: {e:?}"));
     };
+    filenames.sort();
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "yuv")] {
-            if let Err(e) = sdcard.read_file(
-                "video.yuv",
-                |file| {
-                    cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
-                        file,
-                        display.deref_mut(),
-                    )
-                },
-            ) {
-                display.message(format_args!("{e:?}"));
-            }
-        } else if #[cfg(feature = "rgb")] {
-            if let Err(e) = sdcard.read_file(
-                "video.rgb",
-                |file| {
-                    cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
-                        file,
-                        display.deref_mut(),
-                    )
-                },
-            ) {
-                display.message(format_args!("{e:?}"));
-            }
-        } else if #[cfg(feature = "mjpeg")] {
-            if let Err(e) = sdcard.read_file(
-                "video.mjp",
-                |file| {
-                    cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
-                        file,
-                        display.deref_mut(),
-                    )
-                },
-            ) {
-                display.message(format_args!("{e:?}"));
-            }
+    #[allow(clippy::infinite_iter)]
+    filenames.into_iter().flatten().cycle().for_each(|filename|{
+        log::info!("Playing {filename}");
+        match sdcard.read_file(
+            SUFFIX,
+            filename,
+            |file| {
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "yuv")] {
+                        cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                            file,
+                            display.deref_mut(),
+                        )
+                    } else if #[cfg(feature = "rgb")] {
+                        cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
+                            file,
+                            display.deref_mut(),
+                        )
+                    } else if #[cfg(feature = "mjpeg")] {
+                        cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
+                            file,
+                            display.deref_mut(),
+                        )
+                    }
+                }
+                }
+        ) {
+            Ok(_) | Err(Error::VideoEof) => {},
+            Err(e) => display.message(format_args!("{e:?}"))
         }
-    }
+    });
 
     unreachable!();
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v~1.0/examples
