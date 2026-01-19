@@ -43,7 +43,7 @@ mipidsi = "0.9.0"
 embedded-graphics = "0.8.1"
 # XXX Custom embedded-sdmmc to avoid infinite recursion
 # https://github.com/rust-embedded-community/embedded-sdmmc-rs/commit/a707d3094ea7c54e38d4e0e278e1a638bda62ba1
-embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", ref="7b13b7b", default-features = false }
+embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="7b13b7b", default-features = false }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 cfg-if = "1.0"
