@@ -8,7 +8,6 @@
 #![deny(clippy::large_stack_frames)]
 
 use core::ops::DerefMut;
-use cyd_player::error::Error;
 cfg_if::cfg_if! {
     if #[cfg(feature = "yuv")] {
         use cyd_player::video::yuv;
@@ -19,7 +18,6 @@ cfg_if::cfg_if! {
     }
 }
 
-use embedded_sdmmc::SdCardError;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 
@@ -76,7 +74,7 @@ fn main() -> ! {
         if #[cfg(feature = "yuv")] {
             if let Err(e) = sdcard.read_file(
                 "video.yuv",
-                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _, _>> {
+                |file| {
                     cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
                         file,
                         display.deref_mut(),
@@ -88,7 +86,7 @@ fn main() -> ! {
         } else if #[cfg(feature = "rgb")] {
             if let Err(e) = sdcard.read_file(
                 "video.rgb",
-                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _, _>> {
+                |file| {
                     cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
                         file,
                         display.deref_mut(),
@@ -100,7 +98,7 @@ fn main() -> ! {
         } else if #[cfg(feature = "mjpeg")] {
             if let Err(e) = sdcard.read_file(
                 "video.mjp",
-                |file| -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, _, _>> {
+                |file| {
                     cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
                         file,
                         display.deref_mut(),
