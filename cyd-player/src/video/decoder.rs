@@ -28,7 +28,7 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>>;
+    ) -> Result<Option<Self::ImageDrawable<'a>>, Error<R::Error, Self::DecoderError, D::Error>>;
 
     #[allow(clippy::type_complexity)]
     fn render<'a>(

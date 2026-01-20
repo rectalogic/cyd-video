@@ -17,7 +17,6 @@ where
     ReadError(IO),
     ReadExactError(ReadExactError<IO>),
     DecodeErrors(D),
-    VideoEof,
 }
 
 impl<IO, D, DI> From<ConfigError> for Error<IO, D, DI>

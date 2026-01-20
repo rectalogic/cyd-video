@@ -1,10 +1,9 @@
 use crate::error::Error;
-use core::{convert::Infallible, fmt};
+use core::convert::Infallible;
 use embedded_hal::spi::SpiBus;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{
-    DirEntry, SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager,
-    filesystem::ToShortFileName,
+    SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
 };
 use esp_hal::{
     Blocking,
@@ -26,8 +25,7 @@ pub struct Peripherals {
 type SdCardType =
     embedded_sdmmc::SdCard<ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>, Delay>;
 type VolumeManagerType = VolumeManager<SdCardType, DummyTimesource, 4, 4, 1>;
-type FileType<'a> = embedded_sdmmc::File<'a, SdCardType, DummyTimesource, 4, 4, 1>;
-
+type DirectoryType<'a> = embedded_sdmmc::Directory<'a, SdCardType, DummyTimesource, 4, 4, 1>;
 pub struct SdCard {
     volume_manager: VolumeManagerType,
 }
@@ -67,47 +65,25 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub fn iterate_dir<N, F>(
-        &mut self,
-        dirname: N,
-        f: F,
-    ) -> Result<(), Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>
-    where
-        N: ToShortFileName,
-        F: FnMut(&DirEntry),
-    {
-        let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
-        let root_directory = volume.open_root_dir()?;
-        let directory = root_directory.open_dir(dirname)?;
-        directory.iterate_dir(f)?;
-        directory.close()?;
-        root_directory.close()?;
-        volume.close()?;
-        Ok(())
-    }
-
-    pub fn read_file<DN, FN, F, R, RE, DE>(
+    pub fn open_directory<DN, F, R>(
         &mut self,
         dirname: DN,
-        filename: FN,
         f: F,
-    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>
+    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>
     where
-        RE: fmt::Debug,
-        DE: fmt::Debug,
         DN: ToShortFileName,
-        FN: ToShortFileName,
-        F: FnOnce(&mut FileType) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, RE, DE>>,
+        F: FnOnce(
+            &DirectoryType,
+        )
+            -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let root_directory = volume.open_root_dir()?;
         let directory = root_directory.open_dir(dirname)?;
-        let mut file = directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly)?;
 
-        let result = f(&mut file)?;
+        let result = f(&directory)?;
 
         // Close in reverse order
-        file.close()?;
         directory.close()?;
         root_directory.close()?;
         volume.close()?;

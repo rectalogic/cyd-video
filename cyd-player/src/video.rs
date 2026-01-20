@@ -35,17 +35,20 @@ where
     let frame_duration = Duration::from_micros((1000 * 1000) / decoder.header().fps() as u64);
     let mut buffer = [0u8; DECODE_SIZE];
     loop {
-        let pixels = decoder.decode_into(&mut buffer)?;
-        let image = Image::with_center(&pixels, CENTER);
-        if let Some(start) = start {
-            let elapsed = start.elapsed();
-            if frame_duration > elapsed {
-                delay.delay(frame_duration - elapsed);
-            } else {
-                log::warn!("lag {:?}", elapsed - frame_duration);
+        if let Some(pixels) = decoder.decode_into(&mut buffer)? {
+            let image = Image::with_center(&pixels, CENTER);
+            if let Some(start) = start {
+                let elapsed = start.elapsed();
+                if frame_duration > elapsed {
+                    delay.delay(frame_duration - elapsed);
+                } else {
+                    log::warn!("lag {:?}", elapsed - frame_duration);
+                }
             }
-        }
-        start = Some(Instant::now());
-        decoder.render(image, display.deref_mut())?;
+            start = Some(Instant::now());
+            decoder.render(image, display.deref_mut())?;
+        } else {
+            return Ok(());
+        };
     }
 }

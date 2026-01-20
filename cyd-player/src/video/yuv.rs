@@ -40,7 +40,8 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>> {
+    ) -> Result<Option<Self::ImageDrawable<'a>>, Error<R::Error, Self::DecoderError, D::Error>>
+    {
         let width = self.header.width() as u32;
         let height = self.header.height() as u32;
         let buffer = &mut buffer[..((width * height) + (width * height) / 2) as usize];
@@ -48,11 +49,11 @@ where
         match self.reader.read_exact(buffer) {
             Ok(_) => {}
             Err(ReadExactError::UnexpectedEof) => {
-                return Err(Error::VideoEof);
+                return Ok(None);
             }
             Err(ReadExactError::Other(e)) => return Err(Error::ReadError(e)),
         }
-        Ok(Pixels::new(buffer, size))
+        Ok(Some(Pixels::new(buffer, size)))
     }
 
     fn render<'a>(

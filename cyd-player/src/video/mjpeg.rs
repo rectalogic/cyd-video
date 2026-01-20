@@ -79,7 +79,8 @@ where
     fn decode_into<'a>(
         &mut self,
         buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Self::ImageDrawable<'a>, Error<R::Error, Self::DecoderError, D::Error>> {
+    ) -> Result<Option<Self::ImageDrawable<'a>>, Error<R::Error, Self::DecoderError, D::Error>>
+    {
         let [pool_buffer, decode_buffer] = buffer
             .get_disjoint_mut([0..MINIMUM_POOL_SIZE, MINIMUM_POOL_SIZE..DECODE_SIZE])
             .unwrap();
@@ -99,9 +100,9 @@ where
             let end = jpeg_range.end;
             let jpeg_data = &decode_buffer[jpeg_range];
             self.decode_buffer_valid = end..self.decode_buffer_valid.end;
-            JpegDrawable::new(pool_buffer, jpeg_data)
+            Ok(Some(JpegDrawable::new(pool_buffer, jpeg_data)?))
         } else {
-            Err(Error::VideoEof)
+            Ok(None)
         }
     }
 

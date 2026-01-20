@@ -19,7 +19,6 @@ cfg_if::cfg_if! {
     }
 }
 
-use cyd_player::error::Error;
 use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
@@ -83,55 +82,60 @@ fn main() -> ! {
         }
     }
 
-    const MAX_FILES: usize = 5;
-    let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
-    let mut index: usize = 0;
     log::info!("Loading dir {SUFFIX}");
-    if let Err(e) = sdcard.iterate_dir(SUFFIX, |d| {
-        if index < MAX_FILES
-            && !d.attributes.is_directory()
-            && d.name.extension() == SUFFIX.as_bytes()
-        {
-            log::info!("Found {}", d.name);
-            filenames[index] = Some(d.name);
-            index += 1;
-        }
-    }) {
-        display.message(format_args!("directory {SUFFIX} error: {e:?}"));
-    };
-    filenames.sort();
+    if let Err(e) = sdcard.open_directory(SUFFIX, |directory| {
+        const MAX_FILES: usize = 5;
+        let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
+        let mut index: usize = 0;
+        if let Err(e) = directory.iterate_dir(|entry| {
+            if index < MAX_FILES
+                && !entry.attributes.is_directory()
+                && entry.name.extension() == SUFFIX.as_bytes()
+            {
+                log::info!("Found {}", entry.name);
+                filenames[index] = Some(entry.name);
+                index += 1;
+            };
+        }) {
+            display.message(format_args!("directory {SUFFIX} error: {e:?}"))
+        };
+        filenames.sort();
 
-    #[allow(clippy::infinite_iter)]
-    filenames.into_iter().flatten().cycle().for_each(|filename|{
-        log::info!("Playing {filename}");
-        match sdcard.read_file(
-            SUFFIX,
-            filename,
-            |file| {
-                cfg_if::cfg_if! {
-                    if #[cfg(feature = "yuv")] {
-                        cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
-                            file,
-                            display.deref_mut(),
-                        )
-                    } else if #[cfg(feature = "rgb")] {
-                        cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
-                            file,
-                            display.deref_mut(),
-                        )
-                    } else if #[cfg(feature = "mjpeg")] {
-                        cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
-                            file,
-                            display.deref_mut(),
-                        )
+        #[allow(clippy::infinite_iter)]
+        filenames.into_iter().flatten().cycle().for_each(|filename| {
+            log::info!("Playing {filename}");
+            match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
+                Ok(file) => {
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "yuv")] {
+                            let result = cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
+                                file,
+                                display.deref_mut(),
+                            );
+                        } else if #[cfg(feature = "rgb")] {
+                            let result = cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
+                                file,
+                                display.deref_mut(),
+                            );
+                        } else if #[cfg(feature = "mjpeg")] {
+                            let result = cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
+                                file,
+                                display.deref_mut(),
+                            );
+                        }
+                    };
+                   match result {
+                        Ok(_) => {},
+                        Err(e) => display.message(format_args!("{e:?}"))
                     }
                 }
-                }
-        ) {
-            Ok(_) | Err(Error::VideoEof) => {},
-            Err(e) => display.message(format_args!("{e:?}"))
-        }
-    });
+                Err(e) => display.message(format_args!("{filename} error: {e:?}"))
+            };
+        });
+        Ok(())
+    }) {
+        display.message(format_args!("{e:?}"))
+    };
 
     unreachable!();
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v~1.0/examples
