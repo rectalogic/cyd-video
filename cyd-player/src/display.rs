@@ -44,13 +44,13 @@ pub const CENTER: Point = Point::new(
 
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
-    pub gpio2: GPIO2<'static>,
-    pub gpio4: GPIO4<'static>,
-    pub gpio12: GPIO12<'static>,
-    pub gpio13: GPIO13<'static>,
-    pub gpio14: GPIO14<'static>,
-    pub gpio15: GPIO15<'static>,
-    pub gpio21: GPIO21<'static>,
+    pub dc: GPIO2<'static>,
+    pub rst: GPIO4<'static>,
+    pub miso: GPIO12<'static>,
+    pub mosi: GPIO13<'static>,
+    pub sclk: GPIO14<'static>,
+    pub cs: GPIO15<'static>,
+    pub bl: GPIO21<'static>,
 }
 
 pub struct Display<'a> {
@@ -66,22 +66,20 @@ impl<'a> Display<'a> {
                 .with_mode(SpiMode::_0),
         )
         .expect("display SPI")
-        //CLK
-        .with_sck(peripherals.gpio14)
-        //DIN
-        .with_mosi(peripherals.gpio13)
-        .with_miso(peripherals.gpio12);
+        .with_sck(peripherals.sclk)
+        .with_mosi(peripherals.mosi)
+        .with_miso(peripherals.miso);
 
-        let dc = Output::new(peripherals.gpio2, Level::Low, OutputConfig::default());
-        let cs = Output::new(peripherals.gpio15, Level::Low, OutputConfig::default());
-        let mut reset = Output::new(peripherals.gpio4, Level::Low, OutputConfig::default());
-        reset.set_high();
+        let dc = Output::new(peripherals.dc, Level::Low, OutputConfig::default());
+        let cs = Output::new(peripherals.cs, Level::Low, OutputConfig::default());
+        let mut rst = Output::new(peripherals.rst, Level::Low, OutputConfig::default());
+        rst.set_high();
 
         let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).expect("infallible");
         let interface = SpiInterface::new(spi_dev, dc, display_buffer);
 
         let mut display = Builder::new(ILI9341Rgb565, interface)
-            .reset_pin(reset)
+            .reset_pin(rst)
             .display_size(
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.0,
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.1,
@@ -95,7 +93,7 @@ impl<'a> Display<'a> {
             .init(&mut Delay::new())
             .expect("display builder init");
 
-        let _backlight = Output::new(peripherals.gpio21, Level::High, OutputConfig::default());
+        let _backlight = Output::new(peripherals.bl, Level::High, OutputConfig::default());
         display.clear(Rgb565::BLACK).expect("display clear");
 
         Self { display }

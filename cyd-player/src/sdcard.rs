@@ -16,10 +16,10 @@ use esp_hal::{
 
 pub struct Peripherals {
     pub spi3: SPI3<'static>,
-    pub gpio5: GPIO5<'static>,
-    pub gpio18: GPIO18<'static>,
-    pub gpio19: GPIO19<'static>,
-    pub gpio23: GPIO23<'static>,
+    pub cs: GPIO5<'static>,
+    pub sclk: GPIO18<'static>,
+    pub miso: GPIO19<'static>,
+    pub mosi: GPIO23<'static>,
 }
 
 type SdCardType =
@@ -38,16 +38,16 @@ impl SdCard {
             peripherals.spi3,
             SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
         )?
-        .with_sck(peripherals.gpio18)
-        .with_mosi(peripherals.gpio23)
-        .with_miso(peripherals.gpio19);
+        .with_sck(peripherals.sclk)
+        .with_mosi(peripherals.mosi)
+        .with_miso(peripherals.miso);
 
         // Send 74+ clock cycles (10 bytes = 80 cycles)
         // CS doesn't need to exist yet - it just needs to NOT be asserted
         let mut dummy = [0xFF; 10];
         SpiBus::transfer_in_place(&mut spi, &mut dummy)?;
 
-        let cs = Output::new(peripherals.gpio5, Level::High, OutputConfig::default());
+        let cs = Output::new(peripherals.cs, Level::High, OutputConfig::default());
         let spi_dev = ExclusiveDevice::new(spi, cs, Delay::new()).unwrap();
         let sdcard = embedded_sdmmc::SdCard::new(spi_dev, Delay::new());
 
