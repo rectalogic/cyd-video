@@ -1,6 +1,6 @@
 use core::{fmt, ops::DerefMut};
 
-use crate::{display::CENTER, error::Error, video::decoder::Decoder};
+use crate::{display::CENTER, error::Error, touch::TouchDetector, video::decoder::Decoder};
 use cyd_encoder::format::FormatHeader;
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
@@ -21,6 +21,7 @@ pub mod yuv;
 pub fn play<R, DT, const HEADER_SIZE: usize, F, const DECODE_SIZE: usize, D>(
     reader: R,
     mut display: &mut DT,
+    touch_detector: &TouchDetector,
 ) -> Result<(), Error<R::Error, D::DecoderError, DT::Error>>
 where
     R: Read + Seek,
@@ -29,11 +30,13 @@ where
     F: FormatHeader<HEADER_SIZE>,
     D: Decoder<R, DT, HEADER_SIZE, F, DECODE_SIZE>,
 {
+    display.clear(Rgb565::BLACK).expect("clear");
     let delay = Delay::new();
     let mut start: Option<Instant> = None;
     let mut decoder = D::new(reader)?;
     let frame_duration = Duration::from_micros((1000 * 1000) / decoder.header().fps() as u64);
     let mut buffer = [0u8; DECODE_SIZE];
+    let mut count: u16 = 0;
     loop {
         if let Some(pixels) = decoder.decode_into(&mut buffer)? {
             let image = Image::with_center(&pixels, CENTER);
@@ -50,5 +53,13 @@ where
         } else {
             return Ok(());
         };
+        count += 1;
+        if count >= 5 {
+            count = 0;
+            if touch_detector.was_touched() {
+                display.clear(Rgb565::BLUE).expect("clear");
+                return Ok(());
+            }
+        }
     }
 }

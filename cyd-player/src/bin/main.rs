@@ -19,6 +19,7 @@ cfg_if::cfg_if! {
     }
 }
 
+use cyd_player::touch::TouchDetector;
 use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
@@ -72,6 +73,8 @@ fn main() -> ! {
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
 
+    let touch_detector = TouchDetector::new(peripherals.IO_MUX, peripherals.GPIO36);
+
     cfg_if::cfg_if! {
         if #[cfg(feature = "yuv")] {
             const SUFFIX: &str = "YUV";
@@ -111,16 +114,19 @@ fn main() -> ! {
                             let result = cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
                                 file,
                                 display.deref_mut(),
+                                &touch_detector
                             );
                         } else if #[cfg(feature = "rgb")] {
                             let result = cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
                                 file,
                                 display.deref_mut(),
+                                &touch_detector
                             );
                         } else if #[cfg(feature = "mjpeg")] {
                             let result = cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
                                 file,
                                 display.deref_mut(),
+                                &touch_detector
                             );
                         }
                     };

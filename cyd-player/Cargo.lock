@@ -119,6 +119,7 @@ name = "cyd-player"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
+ "critical-section",
  "cyd-encoder",
  "embedded-graphics",
  "embedded-hal 1.0.0",

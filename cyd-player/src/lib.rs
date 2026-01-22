@@ -2,4 +2,5 @@
 pub mod display;
 pub mod error;
 pub mod sdcard;
+pub mod touch;
 pub mod video;
