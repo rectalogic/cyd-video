@@ -16,11 +16,13 @@ use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
     Blocking,
     delay::Delay,
+    dma::{DmaRxBuf, DmaTxBuf},
+    dma_buffers,
     gpio::{Level, Output, OutputConfig},
-    peripherals::{GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
+    peripherals::{DMA_SPI2, GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
         Mode as SpiMode,
-        master::{Config as SpiConfig, Spi},
+        master::{Config as SpiConfig, Spi, SpiDmaBus},
     },
     time::Rate,
 };
@@ -31,8 +33,8 @@ use mipidsi::{
     options::{ColorOrder, Orientation, Rotation},
 };
 
-type InternalDisplay<'a> = mipidsi::Display<
-    SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
+type DisplayType<'a> = mipidsi::Display<
+    SpiInterface<'a, ExclusiveDevice<SpiDmaBus<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
     ILI9341Rgb565,
     Output<'a>,
 >;
@@ -44,6 +46,7 @@ pub const CENTER: Point = Point::new(
 
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
+    pub dma: DMA_SPI2<'static>,
     pub dc: GPIO2<'static>,
     pub rst: GPIO4<'static>,
     pub miso: GPIO12<'static>,
@@ -54,21 +57,29 @@ pub struct Peripherals {
 }
 
 pub struct Display<'a> {
-    display: InternalDisplay<'a>,
+    display: DisplayType<'a>,
 }
 
 impl<'a> Display<'a> {
+    #[allow(clippy::large_stack_frames)]
     pub fn new(display_buffer: &'a mut [u8], peripherals: Peripherals) -> Self {
+        let dma_channel = peripherals.dma;
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(32000);
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).expect("dma rx");
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).expect("dma tx");
+
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
-                .with_frequency(Rate::from_mhz(40))
+                .with_frequency(Rate::from_mhz(60))
                 .with_mode(SpiMode::_0),
         )
         .expect("display SPI")
         .with_sck(peripherals.sclk)
         .with_mosi(peripherals.mosi)
-        .with_miso(peripherals.miso);
+        .with_miso(peripherals.miso)
+        .with_dma(dma_channel)
+        .with_buffers(dma_rx_buf, dma_tx_buf);
 
         let dc = Output::new(peripherals.dc, Level::Low, OutputConfig::default());
         let cs = Output::new(peripherals.cs, Level::Low, OutputConfig::default());
@@ -117,7 +128,7 @@ impl<'a> Display<'a> {
 }
 
 impl<'a> Deref for Display<'a> {
-    type Target = InternalDisplay<'a>;
+    type Target = DisplayType<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.display

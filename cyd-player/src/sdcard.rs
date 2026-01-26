@@ -8,22 +8,27 @@ use embedded_sdmmc::{
 use esp_hal::{
     Blocking,
     delay::Delay,
+    dma::{DmaRxBuf, DmaTxBuf},
+    dma_buffers,
     gpio::{Level, Output, OutputConfig},
-    peripherals::{GPIO5, GPIO18, GPIO19, GPIO23, SPI3},
-    spi::master::{Config as SpiConfig, Spi},
+    peripherals::{DMA_SPI3, GPIO5, GPIO18, GPIO19, GPIO23, SPI3},
+    spi::master::{Config as SpiConfig, Spi, SpiDmaBus},
     time::Rate,
 };
 
 pub struct Peripherals {
     pub spi3: SPI3<'static>,
+    pub dma: DMA_SPI3<'static>,
     pub cs: GPIO5<'static>,
     pub sclk: GPIO18<'static>,
     pub miso: GPIO19<'static>,
     pub mosi: GPIO23<'static>,
 }
 
-type SdCardType =
-    embedded_sdmmc::SdCard<ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>, Delay>;
+type SdCardType = embedded_sdmmc::SdCard<
+    ExclusiveDevice<SpiDmaBus<'static, Blocking>, Output<'static>, Delay>,
+    Delay,
+>;
 type VolumeManagerType = VolumeManager<SdCardType, DummyTimesource, 4, 4, 1>;
 type DirectoryType<'a> = embedded_sdmmc::Directory<'a, SdCardType, DummyTimesource, 4, 4, 1>;
 pub struct SdCard {
@@ -34,13 +39,20 @@ impl SdCard {
     pub fn new(
         peripherals: Peripherals,
     ) -> Result<Self, Error<Infallible, Infallible, Infallible>> {
+        let dma_channel = peripherals.dma;
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(32000);
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).expect("dma rx");
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).expect("dma tx");
+
         let mut spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
         )?
         .with_sck(peripherals.sclk)
         .with_mosi(peripherals.mosi)
-        .with_miso(peripherals.miso);
+        .with_miso(peripherals.miso)
+        .with_dma(dma_channel)
+        .with_buffers(dma_rx_buf, dma_tx_buf);
 
         // Send 74+ clock cycles (10 bytes = 80 cycles)
         // CS doesn't need to exist yet - it just needs to NOT be asserted

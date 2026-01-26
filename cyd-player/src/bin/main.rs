@@ -53,6 +53,7 @@ fn main() -> ! {
         &mut display_buffer,
         cyd_player::display::Peripherals {
             spi2: peripherals.SPI2,
+            dma: peripherals.DMA_SPI2,
             dc: peripherals.GPIO2,
             rst: peripherals.GPIO4,
             miso: peripherals.GPIO12,
@@ -64,6 +65,7 @@ fn main() -> ! {
     );
     let mut sdcard = match cyd_player::sdcard::SdCard::new(cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
+        dma: peripherals.DMA_SPI3,
         cs: peripherals.GPIO5,
         sclk: peripherals.GPIO18,
         miso: peripherals.GPIO19,
