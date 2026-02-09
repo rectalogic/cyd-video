@@ -1,9 +1,9 @@
 [package]
 edition      = "2024"
 name         = "cyd-player"
-rust-version = "1.88"
+rust-version = "1.92"
 version      = "0.1.0"
-license = "GPL-3.0-or-later"
+license      = "GPL-3.0-or-later"
 
 [[bin]]
 name = "cyd-video"
