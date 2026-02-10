@@ -15,10 +15,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        feature: ["mjpeg", "yuv", "rgb"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -33,4 +29,4 @@ jobs:
       - name: Build
         run: |
           cd cyd-player
-          cargo build --features ${{ matrix.feature }}
+          cargo build
