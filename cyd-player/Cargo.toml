@@ -40,10 +40,11 @@ embedded-graphics = "0.8.1"
 # XXX Custom embedded-sdmmc to avoid infinite recursion
 # https://github.com/rust-embedded-community/embedded-sdmmc-rs/commit/a707d3094ea7c54e38d4e0e278e1a638bda62ba1
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="7b13b7b", default-features = false }
-embedded-io = "^0.6.1"  # match embedded-sdmmc
+embedded-io = "0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"] }
-riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev="02e0e47", default-features = false, features = ["embedded-io"] }
+# riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev="02e0e47", default-features = false, features = ["embedded-io"] }
+riffparse = { path = "/Users/aw/Projects/rectalogic/riffparse", default-features = false, features = ["embedded-io"] }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

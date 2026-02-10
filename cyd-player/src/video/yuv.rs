@@ -7,6 +7,9 @@ use embedded_graphics::{
     primitives::Rectangle,
 };
 
+pub const MAX_ENCODED_SIZE: usize = (display::DISPLAY_WIDTH * display::DISPLAY_HEIGHT) as usize
+    + (display::DISPLAY_WIDTH * display::DISPLAY_HEIGHT) as usize / 2;
+
 pub struct YuvDecoder {
     width: u32,
     height: u32,
@@ -23,8 +26,6 @@ where
     D: DrawTarget<Color = Rgb565>,
     D::Error: fmt::Debug,
 {
-    const MAX_ENCODED_SIZE: usize = (display::DISPLAY_WIDTH * display::DISPLAY_HEIGHT) as usize
-        + (display::DISPLAY_WIDTH * display::DISPLAY_HEIGHT) as usize / 2;
     type ImageDrawable<'a> = Pixels<'a>;
 
     fn decode_frame<'a>(

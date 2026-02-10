@@ -18,11 +18,15 @@ use embedded_graphics::{
 use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool};
 extern crate alloc;
 
+#[derive(Default)]
 pub struct MjpegDecoder {}
+
+// 15K buffer to read compressed JPG 320x240 image plus pool
+pub const MAX_ENCODED_SIZE: usize = (15 * 1024) + MINIMUM_POOL_SIZE;
 
 impl MjpegDecoder {
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 }
 
@@ -31,8 +35,6 @@ where
     D: DrawTarget<Color = Rgb565>,
     D::Error: fmt::Debug,
 {
-    // 15K buffer to read compressed JPG 320x240 image plus pool
-    const MAX_ENCODED_SIZE: usize = (15 * 1024) + MINIMUM_POOL_SIZE;
     type ImageDrawable<'a> = JpegDrawable<'a>;
 
     fn decode_frame<'a>(
@@ -43,7 +45,7 @@ where
         let [jpeg_data, pool_buffer] = frame_buffer
             .get_disjoint_mut([0..frame_size, frame_size..frame_buffer.len()])
             .unwrap();
-        Ok(JpegDrawable::new(pool_buffer, jpeg_data)?)
+        JpegDrawable::new(pool_buffer, jpeg_data)
     }
 
     fn render<'a>(
