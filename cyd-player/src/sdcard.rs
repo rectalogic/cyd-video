@@ -31,9 +31,7 @@ pub struct SdCard {
 }
 
 impl SdCard {
-    pub fn new(
-        peripherals: Peripherals,
-    ) -> Result<Self, Error<Infallible, Infallible, Infallible>> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible, Infallible>> {
         let mut spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default().with_frequency(Rate::from_khz(400)), // <=400kHz required for initialization
@@ -69,13 +67,12 @@ impl SdCard {
         &mut self,
         dirname: DN,
         f: F,
-    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>
+    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible>>
     where
         DN: ToShortFileName,
         F: FnOnce(
             &DirectoryType,
-        )
-            -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible, Infallible>>,
+        ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let root_directory = volume.open_root_dir()?;

@@ -9,6 +9,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c583acf993cf4245c4acb0a2cc2ab1f9cc097de73411bb6d3647ff6af2b1013d"
 
 [[package]]
+name = "array-init"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d62b7694a562cdf5a74227903507c56ab2cc8bdd1f781ed5cb4cf9c9f810bfc"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -25,6 +31,29 @@ name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "binrw"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81419ff39e6ed10a92a7f125290859776ced35d9a08a665ae40b23e7ca702f30"
+dependencies = [
+ "array-init",
+ "binrw_derive",
+ "bytemuck",
+]
+
+[[package]]
+name = "binrw_derive"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "376404e55ec40d0d6f8b4b7df3f87b87954bd987f0cf9a7207ea3b6ea5c9add4"
+dependencies = [
+ "either",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+]
 
 [[package]]
 name = "bitfield"
@@ -111,16 +140,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyd-encoder"
-version = "0.1.0"
-
-[[package]]
 name = "cyd-player"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
  "critical-section",
- "cyd-encoder",
  "embedded-graphics",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
@@ -133,8 +156,8 @@ dependencies = [
  "esp-println",
  "format_no_std",
  "log",
- "memchr",
  "mipidsi",
+ "riffparse",
  "tjpgdec-rs",
 ]
 
@@ -235,6 +258,12 @@ checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
 ]
+
+[[package]]
+name = "either"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "embassy-embedded-hal"
@@ -920,9 +949,6 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
-dependencies = [
- "log",
-]
 
 [[package]]
 name = "micromath"
@@ -1037,6 +1063,15 @@ name = "rand_core"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
+
+[[package]]
+name = "riffparse"
+version = "0.1.0"
+source = "git+https://github.com/rectalogic/riffparse.git?rev=02e0e47#02e0e4701f96956849e922c222776f29037734f1"
+dependencies = [
+ "binrw",
+ "embedded-io 0.7.1",
+]
 
 [[package]]
 name = "riscv"

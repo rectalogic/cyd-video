@@ -1,14 +1,12 @@
 use core::{
     cell::{Cell, RefCell},
+    convert::Infallible,
     fmt,
-    ops::Range,
 };
 
-use alloc::vec;
-use memchr::memmem;
-
 use crate::{error::Error, video::decoder::Decoder};
-use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader};
+use alloc::vec;
+
 use embedded_graphics::{
     Drawable,
     geometry::Point,
@@ -17,100 +15,42 @@ use embedded_graphics::{
     prelude::*,
     primitives::Rectangle as GraphicsRectangle,
 };
-use embedded_io::{Read, ReadExactError, Seek};
 use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool};
 extern crate alloc;
 
-pub struct MjpegDecoder<R>
-where
-    R: Read + Seek,
-{
-    header: MjpegHeader,
-    reader: R,
-    soi_finder: memmem::Finder<'static>,
-    eoi_finder: memmem::Finder<'static>,
-    decode_buffer_valid: Range<usize>,
-}
+pub struct MjpegDecoder {}
 
-// 15K buffer to read compressed JPG 320x240 image plus pool
-pub const DECODE_SIZE: usize = (15 * 1024) + MINIMUM_POOL_SIZE;
-
-mod markers {
-    pub const SOI: &[u8; 2] = &[0xFF, 0xD8];
-    pub const EOI: &[u8; 2] = &[0xFF, 0xD9];
-}
-
-impl<R: Read + Seek> MjpegDecoder<R> {
-    fn find_jpeg(&self, buffer: &[u8]) -> Option<Range<usize>> {
-        let soi_pos = self.soi_finder.find(buffer)?;
-        let eoi_pos = self.eoi_finder.find(&buffer[soi_pos..])?;
-        let eoi_absolute = soi_pos + eoi_pos + markers::EOI.len();
-        Some(soi_pos..eoi_absolute)
+impl MjpegDecoder {
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
-impl<R, D> Decoder<R, D, 1, MjpegHeader, { DECODE_SIZE }> for MjpegDecoder<R>
+impl<D> Decoder<D> for MjpegDecoder
 where
-    R: Read + Seek,
     D: DrawTarget<Color = Rgb565>,
     D::Error: fmt::Debug,
 {
-    type DecoderError = tjpgdec_rs::Error;
+    // 15K buffer to read compressed JPG 320x240 image plus pool
+    const MAX_ENCODED_SIZE: usize = (15 * 1024) + MINIMUM_POOL_SIZE;
     type ImageDrawable<'a> = JpegDrawable<'a>;
 
-    fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
-        let mut buffer = [0u8; 1];
-        reader.read_exact(&mut buffer)?;
-        let header = MjpegHeader::parse(&buffer);
-
-        Ok(Self {
-            header,
-            reader,
-            soi_finder: memmem::Finder::new(markers::SOI),
-            eoi_finder: memmem::Finder::new(markers::EOI),
-            decode_buffer_valid: 0..0,
-        })
-    }
-
-    fn header(&self) -> &MjpegHeader {
-        &self.header
-    }
-
-    fn decode_into<'a>(
+    fn decode_frame<'a>(
         &mut self,
-        buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Option<Self::ImageDrawable<'a>>, Error<R::Error, Self::DecoderError, D::Error>>
-    {
-        let [pool_buffer, decode_buffer] = buffer
-            .get_disjoint_mut([0..MINIMUM_POOL_SIZE, MINIMUM_POOL_SIZE..DECODE_SIZE])
+        frame_buffer: &'a mut [u8],
+        frame_size: usize,
+    ) -> Result<Self::ImageDrawable<'a>, Error<Infallible, D::Error>> {
+        let [jpeg_data, pool_buffer] = frame_buffer
+            .get_disjoint_mut([0..frame_size, frame_size..frame_buffer.len()])
             .unwrap();
-        // Shift valid contents to beginning
-        if self.decode_buffer_valid.start > 0 {
-            decode_buffer.copy_within(self.decode_buffer_valid.clone(), 0);
-            self.decode_buffer_valid = 0..self.decode_buffer_valid.len();
-        }
-        let decode_buffer_len = decode_buffer.len();
-        // Read into remaining unused buffer
-        let read_len = self
-            .reader
-            .read(&mut decode_buffer[self.decode_buffer_valid.end..decode_buffer_len])
-            .map_err(Error::ReadError)?;
-        self.decode_buffer_valid.end += read_len;
-        if let Some(jpeg_range) = self.find_jpeg(&decode_buffer[self.decode_buffer_valid.clone()]) {
-            let end = jpeg_range.end;
-            let jpeg_data = &decode_buffer[jpeg_range];
-            self.decode_buffer_valid = end..self.decode_buffer_valid.end;
-            Ok(Some(JpegDrawable::new(pool_buffer, jpeg_data)?))
-        } else {
-            Ok(None)
-        }
+        Ok(JpegDrawable::new(pool_buffer, jpeg_data)?)
     }
 
     fn render<'a>(
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error, Self::DecoderError, D::Error>> {
+    ) -> Result<(), Error<Infallible, D::Error>> {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
@@ -122,10 +62,7 @@ pub struct JpegDrawable<'a> {
 }
 
 impl<'a> JpegDrawable<'a> {
-    fn new<E, D>(
-        pool_buffer: &'a mut [u8],
-        jpeg_data: &'a [u8],
-    ) -> Result<Self, Error<E, tjpgdec_rs::Error, D>>
+    fn new<E, D>(pool_buffer: &'a mut [u8], jpeg_data: &'a [u8]) -> Result<Self, Error<E, D>>
     where
         E: fmt::Debug,
         D: fmt::Debug,

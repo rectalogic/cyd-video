@@ -1,5 +1,4 @@
-use cyd_encoder::format::{FormatHeader, mjpeg::MjpegHeader, rgb::RgbHeader, yuv::YuvHeader};
-use std::{error::Error, fs::File, io::Read, process::Command};
+use std::{error::Error, process::Command};
 
 #[derive(argh::FromArgs)]
 /// Play video with custom header format
@@ -22,75 +21,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn preview_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
-    let mut input = File::open(&args.input)?;
-    let mut buffer = [0u8; 1];
-    input.read_exact(&mut buffer)?;
-    let header = MjpegHeader::parse(&buffer);
     Command::new("ffplay")
-        .args([
-            "-hide_banner",
-            "-skip_initial_bytes",
-            &MjpegHeader::header_size().to_string(),
-            "-framerate",
-            &header.fps().to_string(),
-            "-f",
-            "mjpeg",
-            &args.input,
-        ])
+        .args(["-hide_banner", "-f", "avi", &args.input])
         .status()?;
 
     Ok(())
 }
 
 fn preview_yuv(args: Args) -> Result<(), Box<dyn Error>> {
-    let mut input = File::open(&args.input)?;
-    let mut buffer = [0u8; 5];
-    input.read_exact(&mut buffer)?;
-    let header = YuvHeader::parse(&buffer);
-    let size = format!("{}x{}", header.width(), header.height());
     Command::new("ffplay")
-        .args([
-            "-skip_initial_bytes",
-            &YuvHeader::header_size().to_string(),
-            "-framerate",
-            &header.fps().to_string(),
-            "-video_size",
-            &size,
-            "-pixel_format",
-            "yuv420p",
-            "-color_range",
-            "full",
-            "-colorspace",
-            "bt709",
-            "-color_primaries",
-            "bt709",
-            "-color_trc",
-            "bt709",
-            &args.input,
-        ])
+        .args(["-hide_banner", "-f", "avi", &args.input])
         .status()?;
 
     Ok(())
 }
 
 fn preview_rgb(args: Args) -> Result<(), Box<dyn Error>> {
-    let mut input = File::open(&args.input)?;
-    let mut buffer = [0u8; 5];
-    input.read_exact(&mut buffer)?;
-    let header = RgbHeader::parse(&buffer);
-    let size = format!("{}x{}", header.width(), header.height());
+    eprintln!("ffplay plays rgb555le instead of rgb565be");
     Command::new("ffplay")
-        .args([
-            "-skip_initial_bytes",
-            &RgbHeader::header_size().to_string(),
-            "-framerate",
-            &header.fps().to_string(),
-            "-video_size",
-            &size,
-            "-pixel_format",
-            "rgb565be",
-            &args.input,
-        ])
+        .args(["-hide_banner", "-f", "avi", &args.input])
         .status()?;
 
     Ok(())

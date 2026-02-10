@@ -4,20 +4,5 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
-[features]
-default = ["std"]
-std = ["dep:argh", "dep:regex"]
-
-[[bin]]
-name = "encode"
-path = "./src/bin/encode.rs"
-required-features = ["std"]
-
-[[bin]]
-name = "preview"
-path = "./src/bin/preview.rs"
-required-features = ["std"]
-
 [dependencies]
-argh = { version = "0.1.13", optional = true }
-regex = { version = "1.12.2", optional = true }
+argh = "0.1.13"

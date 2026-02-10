@@ -1,3 +1,0 @@
-use super::size_fps::SizeFpsHeader;
-
-pub type YuvHeader = SizeFpsHeader;

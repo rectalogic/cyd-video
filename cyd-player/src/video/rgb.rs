@@ -1,66 +1,45 @@
-use crate::{error::Error, video::decoder::Decoder};
-use core::fmt;
-use cyd_encoder::format::{FormatHeader, rgb::RgbHeader};
+use crate::{display, error::Error, video::decoder::Decoder};
+use core::{convert::Infallible, fmt};
 use embedded_graphics::{
     image::{Image, ImageRaw},
     pixelcolor::Rgb565,
     prelude::*,
 };
-use embedded_io::{Read, ReadExactError, Seek};
 
-pub struct RgbDecoder<R> {
-    header: RgbHeader,
-    reader: R,
+pub struct RgbDecoder {
+    width: u32,
 }
 
-pub const DECODE_SIZE: usize = (RgbHeader::MAX_WIDTH * RgbHeader::MAX_HEIGHT) * 2;
+impl RgbDecoder {
+    pub fn new(width: u32) -> Self {
+        Self { width }
+    }
+}
 
-impl<R, D> Decoder<R, D, 5, RgbHeader, { DECODE_SIZE }> for RgbDecoder<R>
+impl<D> Decoder<D> for RgbDecoder
 where
-    R: Read + Seek,
     D: DrawTarget<Color = Rgb565>,
     D::Error: fmt::Debug,
 {
-    type DecoderError = R::Error;
+    const MAX_ENCODED_SIZE: usize = (display::DISPLAY_WIDTH * display::DISPLAY_HEIGHT) as usize * 2;
     type ImageDrawable<'a> = ImageRaw<'a, Rgb565>;
 
-    fn new(mut reader: R) -> Result<Self, ReadExactError<R::Error>> {
-        let mut buffer = [0u8; 5];
-        reader.read_exact(&mut buffer)?;
-        let header = RgbHeader::parse(&buffer);
-        Ok(Self { header, reader })
-    }
-
-    fn header(&self) -> &RgbHeader {
-        &self.header
-    }
-
-    fn decode_into<'a>(
+    fn decode_frame<'a>(
         &mut self,
-        buffer: &'a mut [u8; DECODE_SIZE],
-    ) -> Result<Option<Self::ImageDrawable<'a>>, Error<R::Error, Self::DecoderError, D::Error>>
-    {
-        let width = self.header.width() as u32;
-        let height = self.header.height() as u32;
-        let buffer = &mut buffer[..((width * height) * 2) as usize];
-        match self.reader.read_exact(buffer) {
-            Ok(_) => {}
-            Err(ReadExactError::UnexpectedEof) => {
-                return Ok(None);
-            }
-            Err(ReadExactError::Other(e)) => return Err(Error::ReadError(e)),
-        }
-        Ok(Some(ImageRaw::<Rgb565>::new(
-            &buffer[..((width * height) * 2) as usize],
-            width,
-        )))
+        frame_buffer: &'a mut [u8],
+        frame_size: usize,
+    ) -> Result<Self::ImageDrawable<'a>, Error<Infallible, D::Error>> {
+        Ok(ImageRaw::<Rgb565>::new(
+            &frame_buffer[..frame_size],
+            self.width,
+        ))
     }
 
     fn render<'a>(
         &'a self,
         image: Image<Self::ImageDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<R::Error, Self::DecoderError, D::Error>> {
+    ) -> Result<(), Error<Infallible, D::Error>> {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }

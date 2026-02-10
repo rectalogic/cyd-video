@@ -1,13 +1,7 @@
-use cyd_encoder::format::{self, FormatHeader};
-use regex::Regex;
-use std::{
-    error::Error,
-    fs::{File, rename},
-    io::{self, Write},
-    path::Path,
-    process::{Command, Output, exit},
-    str::FromStr,
-};
+use std::{error::Error, process::Command};
+
+const MAX_WIDTH: u32 = 320;
+const MAX_HEIGHT: u32 = 240;
 
 #[derive(argh::FromArgs)]
 /// Encode video into format with custom header
@@ -38,12 +32,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
-    let header = format::mjpeg::MjpegHeader::new(args.fps);
     let mut filter = format!(
         "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1:flags=lanczos",
-        args.fps,
-        format::mjpeg::MjpegHeader::MAX_WIDTH,
-        format::mjpeg::MjpegHeader::MAX_HEIGHT
+        args.fps, MAX_WIDTH, MAX_HEIGHT
     );
     if let Some(subtitles) = args.subtitles {
         filter.insert_str(
@@ -59,54 +50,23 @@ fn encode_mjpeg(args: Args) -> Result<(), Box<dyn Error>> {
             "-an",
             "-vf",
             &filter,
-            "-pix_fmt",
-            "yuv420p",
+            "-c:v",
+            "mjpeg",
             "-q:v",
             "10",
             "-f",
-            "mjpeg",
+            "avi",
             "-y",
             &args.output,
         ])
         .status()?;
-
-    prepend_header(args.output, header)?;
     Ok(())
-}
-
-const DUMP_SEPARATOR: &str = " @@!!!!@@ ";
-
-fn parse_output(output: Output) -> Result<(u16, u16), Box<dyn Error>> {
-    if !output.status.success() {
-        io::stdout().write_all(&output.stdout)?;
-        io::stderr().write_all(&output.stderr)?;
-        exit(1);
-    }
-    let pattern = format!(r"{DUMP_SEPARATOR}.* (\d+)x(\d+) .*{DUMP_SEPARATOR}");
-    let re = Regex::new(&pattern)?;
-    let stderr = str::from_utf8(&output.stderr)?;
-    let cap = re
-        .captures(stderr)
-        .ok_or(format!("Failed to parse ffmpeg output: {stderr}"))?;
-    let width = u16::from_str(
-        cap.get(1)
-            .ok_or("Failed to parse ffmpeg output width")?
-            .as_str(),
-    )?;
-    let height = u16::from_str(
-        cap.get(2)
-            .ok_or("Failed to parse ffmpeg output height")?
-            .as_str(),
-    )?;
-    Ok((width, height))
 }
 
 fn encode_yuv(args: Args) -> Result<(), Box<dyn Error>> {
     let mut filter = format!(
         "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1:out_color_matrix=bt709:out_range=full:out_primaries=bt709:out_transfer=bt709",
-        args.fps,
-        format::yuv::YuvHeader::MAX_WIDTH,
-        format::yuv::YuvHeader::MAX_HEIGHT
+        args.fps, MAX_WIDTH, MAX_HEIGHT
     );
     if let Some(subtitles) = args.subtitles {
         filter.insert_str(
@@ -114,7 +74,7 @@ fn encode_yuv(args: Args) -> Result<(), Box<dyn Error>> {
             &format!("subtitles='{}',", subtitles.replace("'", r"\'")),
         );
     }
-    let result = Command::new("ffmpeg")
+    Command::new("ffmpeg")
         .args([
             "-hide_banner",
             "-i",
@@ -122,28 +82,23 @@ fn encode_yuv(args: Args) -> Result<(), Box<dyn Error>> {
             "-an",
             "-vf",
             &filter,
+            "-c:v",
+            "rawvideo",
             "-pix_fmt",
             "yuv420p",
             "-f",
-            "rawvideo",
-            "-dump_separator",
-            DUMP_SEPARATOR,
+            "avi",
             "-y",
             &args.output,
         ])
         .output()?;
-    let (width, height) = parse_output(result)?;
-    let header = format::yuv::YuvHeader::new(width, height, args.fps);
-    prepend_header(args.output, header)?;
     Ok(())
 }
 
 fn encode_rgb(args: Args) -> Result<(), Box<dyn Error>> {
     let mut filter = format!(
         "framerate={},scale=size={}x{}:force_original_aspect_ratio=decrease:reset_sar=1:out_color_matrix=bt709:out_range=full:out_primaries=bt709:out_transfer=bt709",
-        args.fps,
-        format::yuv::YuvHeader::MAX_WIDTH,
-        format::yuv::YuvHeader::MAX_HEIGHT
+        args.fps, MAX_WIDTH, MAX_HEIGHT
     );
     if let Some(subtitles) = args.subtitles {
         filter.insert_str(
@@ -151,7 +106,7 @@ fn encode_rgb(args: Args) -> Result<(), Box<dyn Error>> {
             &format!("subtitles='{}',", subtitles.replace("'", r"\'")),
         );
     }
-    let result = Command::new("ffmpeg")
+    Command::new("ffmpeg")
         .args([
             "-hide_banner",
             "-i",
@@ -159,41 +114,15 @@ fn encode_rgb(args: Args) -> Result<(), Box<dyn Error>> {
             "-an",
             "-vf",
             &filter,
-            "-pix_fmt",
-            "rgb565be",
-            "-f",
+            "-c:v",
             "rawvideo",
-            "-dump_separator",
-            DUMP_SEPARATOR,
+            "-tag:v",
+            "0",
+            "-f",
+            "avi",
             "-y",
             &args.output,
         ])
-        .output()?;
-    let (width, height) = parse_output(result)?;
-    let header = format::yuv::YuvHeader::new(width, height, args.fps);
-    prepend_header(args.output, header)?;
-    Ok(())
-}
-
-fn prepend_header<P: AsRef<Path>, const HEADER_SIZE: usize, F: FormatHeader<HEADER_SIZE>>(
-    path: P,
-    header: F,
-) -> io::Result<()> {
-    let path = path.as_ref();
-    let tmp_path = path.with_extension("tmp");
-
-    let mut input = File::open(path)?;
-    let mut output = File::create(&tmp_path)?;
-
-    let mut buffer = [0u8; HEADER_SIZE];
-    header.encode(&mut buffer);
-    output.write_all(&buffer)?;
-
-    io::copy(&mut input, &mut output)?;
-
-    output.flush()?;
-
-    rename(tmp_path, path)?;
-
+        .status()?;
     Ok(())
 }

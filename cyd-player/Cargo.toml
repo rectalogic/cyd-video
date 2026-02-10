@@ -10,24 +10,19 @@ name = "cyd-video"
 path = "./src/bin/main.rs"
 
 [features]
-default = ["mjpeg"]
-alloc = ["dep:esp-alloc"]
+default = ["log"]
 log = [
     "esp-hal/log-04",
     "esp-bootloader-esp-idf/log-04",
     "esp-println/log-04",
     "embedded-sdmmc/log",
-    "memchr/logging",
 ]
-mjpeg = ["dep:tjpgdec-rs", "alloc"]
-yuv = []
-rgb = []
 
 [dependencies]
 esp-hal = { version = "~1.0", features = ["esp32", "unstable"] }
 
 esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32"] }
-esp-alloc = { version = "0.9.0", optional = true }
+esp-alloc = "0.9.0"
 log = "0.4.27"
 
 esp-backtrace = { version = "0.18.1", features = [
@@ -47,10 +42,8 @@ embedded-graphics = "0.8.1"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="7b13b7b", default-features = false }
 embedded-io = "^0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-cfg-if = "1.0"
-cyd-encoder = { path = "../cyd-encoder", default-features = false }
-tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"], optional = true }
-memchr = { version = "2.7.6", default-features = false }
+tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"] }
+riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev="02e0e47", default-features = false, features = ["embedded-io"] }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

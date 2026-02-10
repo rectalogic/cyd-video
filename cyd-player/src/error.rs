@@ -2,12 +2,12 @@ use core::fmt;
 use embedded_io::ReadExactError;
 use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
+use riffparse::binrw;
 
 #[derive(Debug)]
-pub enum Error<IO, D, DI>
+pub enum Error<IO, DI>
 where
     IO: fmt::Debug,
-    D: fmt::Debug,
     DI: fmt::Debug,
 {
     SpiConfigError(ConfigError),
@@ -16,13 +16,13 @@ where
     SdCardError(embedded_sdmmc::Error<SdCardError>),
     ReadError(IO),
     ReadExactError(ReadExactError<IO>),
-    DecodeErrors(D),
+    BinReadError(binrw::Error),
+    DecodeErrors(tjpgdec_rs::Error),
 }
 
-impl<IO, D, DI> From<ConfigError> for Error<IO, D, DI>
+impl<IO, DI> From<ConfigError> for Error<IO, DI>
 where
     IO: fmt::Debug,
-    D: fmt::Debug,
     DI: fmt::Debug,
 {
     fn from(value: ConfigError) -> Self {
@@ -30,10 +30,9 @@ where
     }
 }
 
-impl<IO, D, DI> From<embedded_sdmmc::Error<SdCardError>> for Error<IO, D, DI>
+impl<IO, DI> From<embedded_sdmmc::Error<SdCardError>> for Error<IO, DI>
 where
     IO: fmt::Debug,
-    D: fmt::Debug,
     DI: fmt::Debug,
 {
     fn from(value: embedded_sdmmc::Error<SdCardError>) -> Self {
@@ -41,10 +40,9 @@ where
     }
 }
 
-impl<IO, D, DI> From<ReadExactError<IO>> for Error<IO, D, DI>
+impl<IO, DI> From<ReadExactError<IO>> for Error<IO, DI>
 where
     IO: fmt::Debug,
-    D: fmt::Debug,
     DI: fmt::Debug,
 {
     fn from(value: ReadExactError<IO>) -> Self {
@@ -52,13 +50,22 @@ where
     }
 }
 
-impl<IO, D, DI> From<esp_hal::spi::Error> for Error<IO, D, DI>
+impl<IO, DI> From<esp_hal::spi::Error> for Error<IO, DI>
 where
     IO: fmt::Debug,
-    D: fmt::Debug,
     DI: fmt::Debug,
 {
     fn from(value: esp_hal::spi::Error) -> Self {
         Error::SpiError(value)
+    }
+}
+
+impl<IO, DI> From<binrw::Error> for Error<IO, DI>
+where
+    IO: fmt::Debug,
+    DI: fmt::Debug,
+{
+    fn from(value: binrw::Error) -> Self {
+        Error::BinReadError(value)
     }
 }

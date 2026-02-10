@@ -9,22 +9,11 @@
 
 use core::ops::DerefMut;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "yuv")] {
-        use cyd_player::video::yuv;
-    } else if #[cfg(feature = "rgb")] {
-        use cyd_player::video::rgb;
-    } else if #[cfg(feature = "mjpeg")] {
-        use cyd_player::video::mjpeg;
-    }
-}
-
 use cyd_player::touch::TouchDetector;
 use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
@@ -45,7 +34,6 @@ fn main() -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    #[cfg(feature = "alloc")]
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
     let mut display_buffer = [0u8; 5 * 1024];
@@ -75,16 +63,7 @@ fn main() -> ! {
 
     let touch_detector = TouchDetector::new(peripherals.IO_MUX, peripherals.GPIO36);
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "yuv")] {
-            const SUFFIX: &str = "YUV";
-        } else if #[cfg(feature = "rgb")] {
-            const SUFFIX: &str = "RGB";
-        } else if #[cfg(feature = "mjpeg")] {
-            const SUFFIX: &str= "MJP";
-        }
-    }
-
+    const SUFFIX: &str = "AVI";
     log::info!("Loading dir {SUFFIX}");
     if let Err(e) = sdcard.open_directory(SUFFIX, |directory| {
         const MAX_FILES: usize = 5;
@@ -105,39 +84,22 @@ fn main() -> ! {
         filenames.sort();
 
         #[allow(clippy::infinite_iter)]
-        filenames.into_iter().flatten().cycle().for_each(|filename| {
-            log::info!("Playing {filename}");
-            match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
-                Ok(file) => {
-                    cfg_if::cfg_if! {
-                        if #[cfg(feature = "yuv")] {
-                            let result = cyd_player::video::play::<_, _, _, _, { yuv::DECODE_SIZE }, yuv::YuvDecoder<_>>(
-                                file,
-                                display.deref_mut(),
-                                &touch_detector
-                            );
-                        } else if #[cfg(feature = "rgb")] {
-                            let result = cyd_player::video::play::<_, _, _, _, { rgb::DECODE_SIZE }, rgb::RgbDecoder<_>>(
-                                file,
-                                display.deref_mut(),
-                                &touch_detector
-                            );
-                        } else if #[cfg(feature = "mjpeg")] {
-                            let result = cyd_player::video::play::<_, _, _, _, { mjpeg::DECODE_SIZE }, mjpeg::MjpegDecoder<_>>(
-                                file,
-                                display.deref_mut(),
-                                &touch_detector
-                            );
+        filenames
+            .into_iter()
+            .flatten()
+            .cycle()
+            .for_each(|filename| {
+                log::info!("Playing {filename}");
+                match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
+                    Ok(file) => {
+                        match cyd_player::video::play(file, display.deref_mut(), &touch_detector) {
+                            Ok(_) => {}
+                            Err(e) => display.message(format_args!("{e:?}")),
                         }
-                    };
-                   match result {
-                        Ok(_) => {},
-                        Err(e) => display.message(format_args!("{e:?}"))
                     }
-                }
-                Err(e) => display.message(format_args!("{filename} error: {e:?}"))
-            };
-        });
+                    Err(e) => display.message(format_args!("{filename} error: {e:?}")),
+                };
+            });
         Ok(())
     }) {
         display.message(format_args!("{e:?}"))
