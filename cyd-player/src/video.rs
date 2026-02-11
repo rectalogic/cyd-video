@@ -38,27 +38,36 @@ where
     };
     let stream_id = video_stream.stream_id;
     match video_stream.stream_header.fcc_handler {
-        tag::MJPG => decoder_play::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
-            mjpeg::MjpegDecoder::new(),
-            display,
-            touch_detector,
-            &mut avi_parser,
-            stream_id,
-        ),
-        tag::I420 => decoder_play::<_, _, _, { rgb::MAX_ENCODED_SIZE }>(
-            rgb::RgbDecoder::new(avi_parser.avi_header.width),
-            display,
-            touch_detector,
-            &mut avi_parser,
-            stream_id,
-        ),
-        tag::NONE => decoder_play::<_, _, _, { yuv::MAX_ENCODED_SIZE }>(
-            yuv::YuvDecoder::new(avi_parser.avi_header.width, avi_parser.avi_header.height),
-            display,
-            touch_detector,
-            &mut avi_parser,
-            stream_id,
-        ),
+        tag::MJPG => {
+            log::info!("Decoding MJPEG");
+            decoder_play::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
+                mjpeg::MjpegDecoder::new(),
+                display,
+                touch_detector,
+                &mut avi_parser,
+                stream_id,
+            )
+        }
+        tag::NONE => {
+            log::info!("Decoding RGB");
+            decoder_play::<_, _, _, { rgb::MAX_ENCODED_SIZE }>(
+                rgb::RgbDecoder::new(avi_parser.avi_header.width),
+                display,
+                touch_detector,
+                &mut avi_parser,
+                stream_id,
+            )
+        }
+        tag::I420 => {
+            log::info!("Decoding YUV");
+            decoder_play::<_, _, _, { yuv::MAX_ENCODED_SIZE }>(
+                yuv::YuvDecoder::new(avi_parser.avi_header.width, avi_parser.avi_header.height),
+                display,
+                touch_detector,
+                &mut avi_parser,
+                stream_id,
+            )
+        }
         fcc => {
             log::error!("Unsupported fourcc {fcc:?}");
             Ok(())
