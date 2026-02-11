@@ -1067,7 +1067,7 @@ checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 [[package]]
 name = "riffparse"
 version = "0.1.0"
-source = "git+https://github.com/rectalogic/riffparse.git?rev=7a37c94#7a37c94d9645014b7ab284d671228250cb555f2d"
+source = "git+https://github.com/rectalogic/riffparse.git?rev=690f5ba#690f5ba301d4435f8ba253b2f36f39f48f90c929"
 dependencies = [
  "binrw",
  "embedded-io 0.6.1",
