@@ -42,8 +42,10 @@ where
         frame_buffer: &'a mut [u8],
         frame_size: usize,
     ) -> Result<Self::ImageDrawable<'a>, Error<Infallible, D::Error>> {
+        // 8 byte alignment
+        let pool_start = frame_size + frame_buffer[frame_size..].as_ptr().align_offset(8);
         let [jpeg_data, pool_buffer] = frame_buffer
-            .get_disjoint_mut([0..frame_size, frame_size..frame_buffer.len()])
+            .get_disjoint_mut([0..frame_size, pool_start..frame_buffer.len()])
             .unwrap();
         JpegDrawable::new(pool_buffer, jpeg_data)
     }

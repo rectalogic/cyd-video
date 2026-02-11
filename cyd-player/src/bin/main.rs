@@ -63,23 +63,23 @@ fn main() -> ! {
 
     let touch_detector = TouchDetector::new(peripherals.IO_MUX, peripherals.GPIO36);
 
-    const SUFFIX: &str = "AVI";
-    log::info!("Loading dir {SUFFIX}");
-    if let Err(e) = sdcard.open_directory(SUFFIX, |directory| {
+    let avi_dir = env!("AVI_DIRECTORY");
+    log::info!("Loading dir {avi_dir}");
+    if let Err(e) = sdcard.open_directory(avi_dir, |directory| {
         const MAX_FILES: usize = 5;
         let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
         let mut index: usize = 0;
         if let Err(e) = directory.iterate_dir(|entry| {
             if index < MAX_FILES
                 && !entry.attributes.is_directory()
-                && entry.name.extension() == SUFFIX.as_bytes()
+                && entry.name.extension() == b"AVI"
             {
                 log::info!("Found {}", entry.name);
                 filenames[index] = Some(entry.name);
                 index += 1;
             };
         }) {
-            display.message(format_args!("directory {SUFFIX} error: {e:?}"))
+            display.message(format_args!("directory {avi_dir} error: {e:?}"))
         };
         filenames.sort();
 

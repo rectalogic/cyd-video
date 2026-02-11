@@ -37,7 +37,7 @@ where
         return Ok(());
     };
     let stream_id = video_stream.stream_id;
-    match video_stream.stream_header.fcc_type {
+    match video_stream.stream_header.fcc_handler {
         tag::MJPG => decoder_play::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
             mjpeg::MjpegDecoder::new(),
             display,
@@ -59,8 +59,8 @@ where
             &mut avi_parser,
             stream_id,
         ),
-        _ => {
-            log::error!("Unsupported fourcc");
+        fcc => {
+            log::error!("Unsupported fourcc {fcc:?}");
             Ok(())
         }
     }

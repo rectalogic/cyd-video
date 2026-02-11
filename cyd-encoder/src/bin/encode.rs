@@ -116,6 +116,8 @@ fn encode_rgb(args: Args) -> Result<(), Box<dyn Error>> {
             &filter,
             "-c:v",
             "rawvideo",
+            "-pix_fmt",
+            "rgb565be",
             "-tag:v",
             "0",
             "-f",
