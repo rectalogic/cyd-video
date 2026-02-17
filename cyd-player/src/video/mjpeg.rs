@@ -11,11 +11,11 @@ use embedded_graphics::{
     Drawable,
     geometry::Point,
     image::{Image, ImageDrawable},
-    pixelcolor::Rgb565,
+    pixelcolor::{Rgb565, raw::RawU16},
     prelude::*,
     primitives::Rectangle as GraphicsRectangle,
 };
-use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool};
+use tjpgdec_rs::{JpegDecoder, MINIMUM_POOL_SIZE, MemoryPool, OutputFormat};
 extern crate alloc;
 
 #[derive(Default)]
@@ -73,6 +73,7 @@ impl<'a> JpegDrawable<'a> {
     {
         let mut pool = MemoryPool::new(pool_buffer);
         let mut decoder = JpegDecoder::new();
+        decoder.set_output_format(OutputFormat::Rgb565);
         decoder
             .prepare(jpeg_data, &mut pool)
             .map_err(Error::DecodeErrors)?;
@@ -102,9 +103,9 @@ impl<'a> JpegDrawable<'a> {
                     Point::new(jpeg_rect.left as i32, jpeg_rect.top as i32),
                     Point::new(jpeg_rect.right as i32, jpeg_rect.bottom as i32),
                 );
-                let pixels = bitmap
-                    .chunks_exact(3)
-                    .map(|pixel| Rgb565::new(pixel[0] >> 3, pixel[1] >> 2, pixel[2] >> 3));
+                let pixels = bitmap.chunks_exact(2).map(|pixel| {
+                    Rgb565::from(RawU16::from(u16::from_be_bytes([pixel[0], pixel[1]])))
+                });
                 // We can't return custom errors from the output function
                 // https://docs.rs/tjpgdec-rs/0.4.0/tjpgdec_rs/type.OutputCallback.html
                 if let Err(e) = target.fill_contiguous(&target_rect, pixels) {

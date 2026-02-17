@@ -1323,8 +1323,7 @@ dependencies = [
 [[package]]
 name = "tjpgdec-rs"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72efb4758c22d4ede593de7a74d19458ed5a3d1bcbec8b884b11fdf80ece8a29"
+source = "git+https://github.com/rectalogic/tjpgdec-rs.git?rev=8ab4c52#8ab4c5267f01b893ec4ae9812b7731685ef77dfc"
 dependencies = [
  "heapless 0.8.0",
 ]

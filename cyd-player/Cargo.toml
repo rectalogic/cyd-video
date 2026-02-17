@@ -42,8 +42,8 @@ embedded-graphics = "0.8.1"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="7b13b7b", default-features = false }
 embedded-io = "0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-tjpgdec-rs = { version = "0.4.0", default-features = false, features = ["fast-decode-1"] }
-riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev="690f5ba", default-features = false, features = ["embedded-io"] }
+tjpgdec-rs = { git = "https://github.com/rectalogic/tjpgdec-rs.git", rev = "8ab4c52", default-features = false, features = ["fast-decode-1"] }
+riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev = "690f5ba", default-features = false, features = ["embedded-io"] }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.
