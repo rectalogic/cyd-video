@@ -7,11 +7,9 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use core::ops::DerefMut;
-
 use cyd_player::touch::TouchDetector;
 use embassy_executor::Spawner;
-use embedded_sdmmc::ShortFileName;
+
 use esp_backtrace as _;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 
@@ -68,44 +66,8 @@ async fn main(_spawner: Spawner) -> ! {
 
     let avi_dir = env!("AVI_DIRECTORY");
     log::info!("Loading dir {avi_dir}");
-    if let Err(e) = sdcard
-        .open_directory(avi_dir, async |directory| {
-            const MAX_FILES: usize = 5;
-            let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
-            let mut index: usize = 0;
-            if let Err(e) = directory.iterate_dir(|entry| {
-                if index < MAX_FILES
-                    && !entry.attributes.is_directory()
-                    && entry.name.extension() == b"AVI"
-                {
-                    log::info!("Found {}", entry.name);
-                    filenames[index] = Some(entry.name);
-                    index += 1;
-                };
-            }) {
-                display.message(format_args!("directory {avi_dir} error: {e:?}"))
-            };
-            filenames.sort();
-
-            let filenames_cycle = filenames.into_iter().flatten().cycle();
-            for filename in filenames_cycle {
-                log::info!("Playing {filename}");
-                match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
-                    Ok(file) => {
-                        match cyd_player::video::play(file, display.deref_mut(), &touch_detector)
-                            .await
-                        {
-                            Ok(_) => {}
-                            Err(e) => display.message(format_args!("{e:?}")),
-                        }
-                    }
-                    Err(e) => display.message(format_args!("{filename} error: {e:?}")),
-                };
-            }
-
-            Ok(())
-        })
-        .await
+    if let Err(e) =
+        cyd_player::video::play_directory(avi_dir, &mut sdcard, &mut display, &touch_detector).await
     {
         display.message(format_args!("{e:?}"))
     };

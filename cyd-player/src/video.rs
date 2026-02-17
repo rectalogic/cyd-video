@@ -1,9 +1,16 @@
 use core::{convert::Infallible, fmt, ops::DerefMut};
 
-use crate::{display::CENTER, error::Error, touch::TouchDetector, video::decoder::Decoder};
+use crate::{
+    display::{CENTER, Display},
+    error::Error,
+    sdcard::SdCard,
+    touch::TouchDetector,
+    video::decoder::Decoder,
+};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
+use embedded_sdmmc::ShortFileName;
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
 pub mod decoder;
@@ -18,7 +25,50 @@ mod tag {
     pub const NONE: Fourcc = Fourcc::from_u32(0);
 }
 
-pub async fn play<R, DT>(
+pub async fn play_directory(
+    avi_dir: &str,
+    sdcard: &mut SdCard,
+    display: &mut Display<'_>,
+    touch_detector: &TouchDetector,
+) -> Result<(), Error<embedded_sdmmc::Error<embedded_sdmmc::SdCardError>, Infallible>> {
+    log::info!("Loading dir {avi_dir}");
+    sdcard
+        .open_directory(avi_dir, async |directory| {
+            const MAX_FILES: usize = 5;
+            let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
+            let mut index: usize = 0;
+            if let Err(e) = directory.iterate_dir(|entry| {
+                if index < MAX_FILES
+                    && !entry.attributes.is_directory()
+                    && entry.name.extension() == b"AVI"
+                {
+                    log::info!("Found {}", entry.name);
+                    filenames[index] = Some(entry.name);
+                    index += 1;
+                };
+            }) {
+                display.message(format_args!("directory {avi_dir} error: {e:?}"))
+            };
+            filenames.sort();
+
+            let filenames_cycle = filenames.into_iter().flatten().cycle();
+            for filename in filenames_cycle {
+                log::info!("Playing {filename}");
+                match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
+                    Ok(file) => match play(file, display.deref_mut(), touch_detector).await {
+                        Ok(_) => {}
+                        Err(e) => display.message(format_args!("{e:?}")),
+                    },
+                    Err(e) => display.message(format_args!("{filename} error: {e:?}")),
+                };
+            }
+
+            Ok(())
+        })
+        .await
+}
+
+async fn play<R, DT>(
     reader: R,
     display: &mut DT,
     touch_detector: &TouchDetector,
@@ -37,7 +87,7 @@ where
     match video_stream.stream_header.fcc_handler {
         tag::MJPG => {
             log::info!("Decoding MJPEG");
-            decoder_play::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
+            play_format::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
                 mjpeg::MjpegDecoder::new(),
                 display,
                 touch_detector,
@@ -48,7 +98,7 @@ where
         }
         tag::NONE => {
             log::info!("Decoding RGB");
-            decoder_play::<_, _, _, { rgb::MAX_ENCODED_SIZE }>(
+            play_format::<_, _, _, { rgb::MAX_ENCODED_SIZE }>(
                 rgb::RgbDecoder::new(avi_parser.avi_header.width),
                 display,
                 touch_detector,
@@ -59,7 +109,7 @@ where
         }
         tag::I420 => {
             log::info!("Decoding YUV");
-            decoder_play::<_, _, _, { yuv::MAX_ENCODED_SIZE }>(
+            play_format::<_, _, _, { yuv::MAX_ENCODED_SIZE }>(
                 yuv::YuvDecoder::new(avi_parser.avi_header.width, avi_parser.avi_header.height),
                 display,
                 touch_detector,
@@ -75,7 +125,7 @@ where
     }
 }
 
-async fn decoder_play<D, DT, R, const BUFFER_SIZE: usize>(
+async fn play_format<D, DT, R, const BUFFER_SIZE: usize>(
     mut decoder: D,
     mut display: &mut DT,
     touch_detector: &TouchDetector,
