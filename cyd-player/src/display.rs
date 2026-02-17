@@ -12,12 +12,13 @@ use embedded_graphics::{
     prelude::*,
     text::{Baseline, Text},
 };
+use embedded_hal::digital::{ErrorType, OutputPin};
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
     Blocking,
     delay::Delay,
     gpio::{Level, Output, OutputConfig},
-    peripherals::{GPIO2, GPIO4, GPIO12, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
+    peripherals::{GPIO2, GPIO4, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
         Mode as SpiMode,
         master::{Config as SpiConfig, Spi},
@@ -31,8 +32,8 @@ use mipidsi::{
     options::{ColorOrder, Orientation, Rotation},
 };
 
-type InternalDisplay<'a> = mipidsi::Display<
-    SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, Output<'a>, NoDelay>, Output<'a>>,
+type DisplayType<'a> = mipidsi::Display<
+    SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, NoCs, NoDelay>, Output<'a>>,
     ILI9341Rgb565,
     Output<'a>,
 >;
@@ -48,7 +49,7 @@ pub struct Peripherals {
     pub spi2: SPI2<'static>,
     pub dc: GPIO2<'static>,
     pub rst: GPIO4<'static>,
-    pub miso: GPIO12<'static>,
+    // miso GPIO12 not needed
     pub mosi: GPIO13<'static>,
     pub sclk: GPIO14<'static>,
     pub cs: GPIO15<'static>,
@@ -56,10 +57,11 @@ pub struct Peripherals {
 }
 
 pub struct Display<'a> {
-    display: InternalDisplay<'a>,
+    display: DisplayType<'a>,
 }
 
 impl<'a> Display<'a> {
+    #[allow(clippy::large_stack_frames)]
     pub fn new(display_buffer: &'a mut [u8], peripherals: Peripherals) -> Self {
         let spi = Spi::new(
             peripherals.spi2,
@@ -70,14 +72,13 @@ impl<'a> Display<'a> {
         .expect("display SPI")
         .with_sck(peripherals.sclk)
         .with_mosi(peripherals.mosi)
-        .with_miso(peripherals.miso);
+        .with_cs(peripherals.cs);
 
         let dc = Output::new(peripherals.dc, Level::Low, OutputConfig::default());
-        let cs = Output::new(peripherals.cs, Level::Low, OutputConfig::default());
         let mut rst = Output::new(peripherals.rst, Level::Low, OutputConfig::default());
         rst.set_high();
 
-        let spi_dev = ExclusiveDevice::new_no_delay(spi, cs).expect("infallible");
+        let spi_dev = ExclusiveDevice::new_no_delay(spi, NoCs).expect("infallible");
         let interface = SpiInterface::new(spi_dev, dc, display_buffer);
 
         let mut display = Builder::new(ILI9341Rgb565, interface)
@@ -119,7 +120,7 @@ impl<'a> Display<'a> {
 }
 
 impl<'a> Deref for Display<'a> {
-    type Target = InternalDisplay<'a>;
+    type Target = DisplayType<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.display
@@ -130,4 +131,20 @@ impl<'a> DerefMut for Display<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.display
     }
+}
+
+pub struct NoCs;
+
+impl OutputPin for NoCs {
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+impl ErrorType for NoCs {
+    type Error = core::convert::Infallible;
 }

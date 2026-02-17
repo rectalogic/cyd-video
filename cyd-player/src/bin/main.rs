@@ -36,14 +36,13 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
 
-    let mut display_buffer = [0u8; 5 * 1024];
+    let mut display_buffer = [0u8; 512];
     let mut display = cyd_player::display::Display::new(
         &mut display_buffer,
         cyd_player::display::Peripherals {
             spi2: peripherals.SPI2,
             dc: peripherals.GPIO2,
             rst: peripherals.GPIO4,
-            miso: peripherals.GPIO12,
             mosi: peripherals.GPIO13,
             sclk: peripherals.GPIO14,
             cs: peripherals.GPIO15,
