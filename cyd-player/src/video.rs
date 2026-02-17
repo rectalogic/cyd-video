@@ -1,12 +1,9 @@
 use core::{convert::Infallible, fmt, ops::DerefMut};
 
 use crate::{display::CENTER, error::Error, touch::TouchDetector, video::decoder::Decoder};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
-use esp_hal::{
-    delay::Delay,
-    time::{Duration, Instant},
-};
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
 pub mod decoder;
@@ -21,7 +18,7 @@ mod tag {
     pub const NONE: Fourcc = Fourcc::from_u32(0);
 }
 
-pub fn play<R, DT>(
+pub async fn play<R, DT>(
     reader: R,
     display: &mut DT,
     touch_detector: &TouchDetector,
@@ -47,6 +44,7 @@ where
                 &mut avi_parser,
                 stream_id,
             )
+            .await
         }
         tag::NONE => {
             log::info!("Decoding RGB");
@@ -57,6 +55,7 @@ where
                 &mut avi_parser,
                 stream_id,
             )
+            .await
         }
         tag::I420 => {
             log::info!("Decoding YUV");
@@ -67,6 +66,7 @@ where
                 &mut avi_parser,
                 stream_id,
             )
+            .await
         }
         fcc => {
             log::error!("Unsupported fourcc {fcc:?}");
@@ -75,7 +75,7 @@ where
     }
 }
 
-fn decoder_play<D, DT, R, const BUFFER_SIZE: usize>(
+async fn decoder_play<D, DT, R, const BUFFER_SIZE: usize>(
     mut decoder: D,
     mut display: &mut DT,
     touch_detector: &TouchDetector,
@@ -92,7 +92,6 @@ where
     let mut buffer = [0u8; BUFFER_SIZE];
 
     display.clear(Rgb565::BLACK).expect("clear");
-    let delay = Delay::new();
     let mut start: Option<Instant> = None;
     for (count, chunk) in avi_parser.movi_chunks(stream_id).enumerate() {
         let chunk = chunk?;
@@ -105,7 +104,7 @@ where
         if let Some(start) = start {
             let elapsed = start.elapsed();
             if frame_duration > elapsed {
-                delay.delay(frame_duration - elapsed);
+                Timer::after(frame_duration - elapsed).await;
             } else {
                 log::warn!("lag {:?}", elapsed - frame_duration);
             }

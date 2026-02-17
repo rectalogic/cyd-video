@@ -25,7 +25,7 @@ pub struct Peripherals {
 type SdCardType =
     embedded_sdmmc::SdCard<ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>, Delay>;
 type VolumeManagerType = VolumeManager<SdCardType, DummyTimesource, 4, 4, 1>;
-type DirectoryType<'a> = embedded_sdmmc::Directory<'a, SdCardType, DummyTimesource, 4, 4, 1>;
+pub type DirectoryType<'a> = embedded_sdmmc::Directory<'a, SdCardType, DummyTimesource, 4, 4, 1>;
 pub struct SdCard {
     volume_manager: VolumeManagerType,
 }
@@ -63,22 +63,21 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub fn open_directory<DN, F, R>(
+    pub async fn open_directory<DN, F, Fut, R>(
         &mut self,
         dirname: DN,
         f: F,
     ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible>>
     where
         DN: ToShortFileName,
-        F: FnOnce(
-            &DirectoryType,
-        ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible>>,
+        F: FnOnce(&DirectoryType) -> Fut,
+        Fut: Future<Output = Result<R, Error<embedded_sdmmc::Error<SdCardError>, Infallible>>>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let root_directory = volume.open_root_dir()?;
         let directory = root_directory.open_dir(dirname)?;
 
-        let result = f(&directory)?;
+        let result = f(&directory).await?;
 
         // Close in reverse order
         directory.close()?;

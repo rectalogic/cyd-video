@@ -10,9 +10,10 @@
 use core::ops::DerefMut;
 
 use cyd_player::touch::TouchDetector;
+use embassy_executor::Spawner;
 use embedded_sdmmc::ShortFileName;
 use esp_backtrace as _;
-use esp_hal::clock::CpuClock;
+use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
 
 extern crate alloc;
 
@@ -24,8 +25,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
     clippy::large_stack_frames,
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
-#[esp_hal::main]
-fn main() -> ! {
+#[esp_rtos::main]
+async fn main(_spawner: Spawner) -> ! {
     // generator version: 1.1.0
 
     #[cfg(feature = "log")]
@@ -35,6 +36,9 @@ fn main() -> ! {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 98768);
+
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
+    esp_rtos::start(timg0.timer0);
 
     let mut display_buffer = [0u8; 512];
     let mut display = cyd_player::display::Display::new(
@@ -64,43 +68,45 @@ fn main() -> ! {
 
     let avi_dir = env!("AVI_DIRECTORY");
     log::info!("Loading dir {avi_dir}");
-    if let Err(e) = sdcard.open_directory(avi_dir, |directory| {
-        const MAX_FILES: usize = 5;
-        let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
-        let mut index: usize = 0;
-        if let Err(e) = directory.iterate_dir(|entry| {
-            if index < MAX_FILES
-                && !entry.attributes.is_directory()
-                && entry.name.extension() == b"AVI"
-            {
-                log::info!("Found {}", entry.name);
-                filenames[index] = Some(entry.name);
-                index += 1;
+    if let Err(e) = sdcard
+        .open_directory(avi_dir, async |directory| {
+            const MAX_FILES: usize = 5;
+            let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
+            let mut index: usize = 0;
+            if let Err(e) = directory.iterate_dir(|entry| {
+                if index < MAX_FILES
+                    && !entry.attributes.is_directory()
+                    && entry.name.extension() == b"AVI"
+                {
+                    log::info!("Found {}", entry.name);
+                    filenames[index] = Some(entry.name);
+                    index += 1;
+                };
+            }) {
+                display.message(format_args!("directory {avi_dir} error: {e:?}"))
             };
-        }) {
-            display.message(format_args!("directory {avi_dir} error: {e:?}"))
-        };
-        filenames.sort();
+            filenames.sort();
 
-        #[allow(clippy::infinite_iter)]
-        filenames
-            .into_iter()
-            .flatten()
-            .cycle()
-            .for_each(|filename| {
+            let filenames_cycle = filenames.into_iter().flatten().cycle();
+            for filename in filenames_cycle {
                 log::info!("Playing {filename}");
                 match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
                     Ok(file) => {
-                        match cyd_player::video::play(file, display.deref_mut(), &touch_detector) {
+                        match cyd_player::video::play(file, display.deref_mut(), &touch_detector)
+                            .await
+                        {
                             Ok(_) => {}
                             Err(e) => display.message(format_args!("{e:?}")),
                         }
                     }
                     Err(e) => display.message(format_args!("{filename} error: {e:?}")),
                 };
-            });
-        Ok(())
-    }) {
+            }
+
+            Ok(())
+        })
+        .await
+    {
         display.message(format_args!("{e:?}"))
     };
 
