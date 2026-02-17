@@ -5,6 +5,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use embassy_time::Delay;
 use embedded_graphics::{
     draw_target::DrawTarget,
     mono_font::{MonoTextStyle, ascii::FONT_6X10},
@@ -12,11 +13,13 @@ use embedded_graphics::{
     prelude::*,
     text::{Baseline, Text},
 };
-use embedded_hal::digital::{ErrorType, OutputPin};
+use embedded_hal::{
+    delay::DelayNs,
+    digital::{ErrorType, OutputPin},
+};
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
     Blocking,
-    delay::Delay,
     gpio::{Level, Output, OutputConfig},
     peripherals::{GPIO2, GPIO4, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
@@ -93,7 +96,7 @@ impl<'a> Display<'a> {
                     .rotate(Rotation::Deg270)
                     .flip_horizontal(),
             )
-            .init(&mut Delay::new())
+            .init(&mut Delay)
             .expect("display builder init");
 
         let _backlight = Output::new(peripherals.bl, Level::High, OutputConfig::default());
@@ -112,9 +115,9 @@ impl<'a> Display<'a> {
             .draw(&mut self.display)
             .unwrap();
 
-        let delay = Delay::new();
+        let mut delay = Delay;
         loop {
-            delay.delay_millis(5000);
+            delay.delay_ms(5000);
         }
     }
 }
