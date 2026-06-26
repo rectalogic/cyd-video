@@ -3,7 +3,7 @@ name: Player CI
 on:
   push:
     paths-ignore:
-      - "**/README.md"
+      - "README.md"
   pull_request:
   workflow_dispatch:
 
@@ -29,6 +29,5 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Run checks
         run: |
-          cd cyd-player
           cargo fmt --all -- --check
           cargo clippy --all-features -- -D warnings

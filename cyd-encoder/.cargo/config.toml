@@ -1,3 +1,0 @@
-[alias]
-encode = "run --bin encode --"
-preview = "run --bin preview --"

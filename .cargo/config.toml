@@ -13,3 +13,6 @@ target = "xtensa-esp32-none-elf"
 
 [unstable]
 build-std = ["alloc", "core"]
+
+[alias]
+xtask = "run --target=host-tuple --manifest-path ./xtask/Cargo.toml --"

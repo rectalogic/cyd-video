@@ -1,0 +1,7 @@
+{
+    "name": "cyd-video",
+    "image": "docker.io/espressif/idf-rust:esp32_latest",
+    "remoteEnv": {
+        "AVI_DIRECTORY": "AVI"
+    }
+}
