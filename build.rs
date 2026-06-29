@@ -1,7 +1,41 @@
+use std::{env, path::PathBuf};
+
 fn main() {
     linker_be_nice();
+
+    esp_new_jpeg();
+
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
+}
+
+fn esp_new_jpeg() {
+    // Link the esp_new_jpeg C library for JPEG decoding
+    println!(
+        "cargo:rustc-link-search=native={}/esp-adf-libs/esp_new_jpeg/lib/esp32",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap()
+    );
+    println!("cargo:rustc-link-lib=static=esp_new_jpeg");
+
+    let bindings = bindgen::Builder::default()
+        .header("esp-adf-libs/esp_new_jpeg/include/esp_jpeg_dec.h")
+        // Tell cargo to invalidate the built crate whenever any of the
+        // included header files changed.
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .use_core()
+        .derive_default(true)
+        .constified_enum_module("jpeg_pixel_format_t")
+        .constified_enum_module("jpeg_error_t")
+        .constified_enum_module("jpeg_subsampling_t")
+        .constified_enum_module("jpeg_rotate_t")
+        .generate()
+        .expect("Unable to generate esp_new_jpeg bindings");
+
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write esp_new_jpeg bindings!");
 }
 
 fn linker_be_nice() {

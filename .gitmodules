@@ -1,0 +1,4 @@
+[submodule "esp-adf-libs"]
+	path = esp-adf-libs
+	url = https://github.com/espressif/esp-adf-libs.git
+	shallow = true

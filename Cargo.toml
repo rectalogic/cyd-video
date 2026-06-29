@@ -21,6 +21,9 @@ log = [
     "embassy-time/log",
 ]
 
+[build-dependencies]
+bindgen = "0.72.1"
+
 [dependencies]
 esp-hal = { version = "~1.1.0", features = ["esp32", "unstable"] }
 esp-rtos = { version = "0.3.0", features = [
@@ -53,6 +56,7 @@ embedded-io = "0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 tjpgdec-rs = { git = "https://github.com/rectalogic/tjpgdec-rs.git", rev = "8ab4c52", default-features = false, features = ["fast-decode-1"] }
 riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev = "690f5ba", default-features = false, features = ["embedded-io"] }
+thiserror = { version = "2.0.18", default-features = false }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

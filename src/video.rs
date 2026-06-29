@@ -12,6 +12,8 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::ShortFileName;
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
+mod decoder;
+mod esp_new_jpeg;
 pub mod mjpeg;
 
 mod tag {
