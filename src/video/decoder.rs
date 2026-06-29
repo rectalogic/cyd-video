@@ -47,14 +47,8 @@ impl From<ffi::c_int> for MjpegError {
     }
 }
 
-pub struct MjpegDecoder<'a, I>
-where
-    I: Iterator<Item = &'a [u8]>,
-{
+pub struct MjpegDecoder {
     handle: jpeg_dec_handle_t,
-    mcu_buffer: McuBuffer,
-    mcu_count: c_int,
-    mjpeg: Peekable<I>,
 }
 
 pub struct McuBuffer {
@@ -89,11 +83,8 @@ impl Drop for McuBuffer {
     }
 }
 
-impl<'a, I> MjpegDecoder<'a, I>
-where
-    I: Iterator<Item = &'a [u8]>,
-{
-    pub fn open(mjpeg: I) -> Result<Self, MjpegError> {
+impl MjpegDecoder {
+    pub fn new() -> Result<Self, MjpegError> {
         let config = jpeg_dec_config_t {
             output_type: jpeg_pixel_format_t::JPEG_PIXEL_FORMAT_RGB565_LE,
             block_enable: true,
@@ -110,9 +101,16 @@ where
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
+        Ok(Self { handle })
+    }
 
-        let mut mjpeg = mjpeg.peekable();
-        let jpeg_data = *mjpeg.peek().ok_or(MjpegError::StreamExhausted)?;
+    pub fn decode<'a, I, F>(&mut self, mut mjpeg: I, mut on_block: F) -> Result<(), MjpegError>
+    where
+        F: FnMut(usize, u16, u16, &[u8]),
+        I: Iterator<Item = &'a [u8]>,
+    {
+        let jpeg_data = mjpeg.next().ok_or(MjpegError::StreamExhausted)?;
+
         let mut jpeg_io = jpeg_dec_io_t {
             inbuf: jpeg_data.as_ptr() as *mut u8,
             inbuf_len: jpeg_data.len() as i32,
@@ -122,7 +120,7 @@ where
         let mut header_info = jpeg_dec_header_info_t::default();
         let ret = unsafe {
             jpeg_dec_parse_header(
-                handle,
+                self.handle,
                 &mut jpeg_io as *mut jpeg_dec_io_t,
                 &mut header_info as *mut jpeg_dec_header_info_t,
             )
@@ -132,50 +130,43 @@ where
         }
 
         let mut mcu_len: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_outbuf_len(handle, &mut mcu_len as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_outbuf_len(self.handle, &mut mcu_len as *mut c_int) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
             return Err(ret.into());
         }
         let mcu_buffer = McuBuffer::new(mcu_len as usize)?;
+        jpeg_io.outbuf = mcu_buffer.ptr;
 
         let mut mcu_count: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_process_count(handle, &mut mcu_count as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_process_count(self.handle, &mut mcu_count as *mut c_int) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_count == 0 {
             return Err(ret.into());
         }
 
-        Ok(Self {
-            handle,
-            mcu_buffer,
-            mcu_count,
-            mjpeg,
-        })
-    }
-
-    // XXX Pass a callback to receive each McuBuffer
-    pub fn decode(&mut self) -> Result<(), MjpegError> {
-        let jpeg_data = self.mjpeg.next().ok_or(MjpegError::StreamExhausted)?;
-        let mut jpeg_io = jpeg_dec_io_t {
-            inbuf: jpeg_data.as_ptr() as *mut u8,
-            inbuf_len: jpeg_data.len() as i32,
-            outbuf: self.mcu_buffer.ptr,
-            out_size: self.mcu_buffer.size as i32,
-            ..Default::default()
-        };
-        for _ in 0..self.mcu_count {
+        //XXX need to loop over mjpeg iterator, setting inbuf/size
+        // XXX need to reset jpeg_io.inbuf_remain?
+        // XXX need to parse header for each frame, so inbuf_remain is set properly?
+        for i in 0..mcu_count as usize {
+            jpeg_io.out_size = 0;
             let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io as *mut jpeg_dec_io_t) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
                 return Err(ret.into());
             }
+            let block_data = &mcu_buffer.as_slice()[0..jpeg_io.out_size as usize];
+            // Calculate block height: out_size / (width * 2 bytes per pixel)
+            let block_width = header_info.width;
+            let block_height = if block_width > 0 {
+                (jpeg_io.out_size as u16) / (block_width * 2)
+            } else {
+                0
+            };
+            on_block(i, block_width, block_height, block_data);
         }
         Ok(())
     }
 }
 
-impl<'a, I> Drop for MjpegDecoder<'a, I>
-where
-    I: Iterator<Item = &'a [u8]>,
-{
+impl Drop for MjpegDecoder {
     fn drop(&mut self) {
         if !self.handle.is_null() {
             unsafe {

@@ -24,10 +24,7 @@ fn esp_new_jpeg() {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .use_core()
         .derive_default(true)
-        .constified_enum_module("jpeg_pixel_format_t")
-        .constified_enum_module("jpeg_error_t")
-        .constified_enum_module("jpeg_subsampling_t")
-        .constified_enum_module("jpeg_rotate_t")
+        .constified_enum_module("jpeg_.*_t")
         .generate()
         .expect("Unable to generate esp_new_jpeg bindings");
 
