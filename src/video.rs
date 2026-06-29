@@ -5,7 +5,6 @@ use crate::{
     error::Error,
     sdcard::SdCard,
     touch::TouchDetector,
-    video::decoder::Decoder,
 };
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
@@ -13,16 +12,11 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::ShortFileName;
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
-pub mod decoder;
 pub mod mjpeg;
-pub mod rgb;
-pub mod yuv;
 
 mod tag {
     use super::Fourcc;
     pub const MJPG: Fourcc = Fourcc::new(*b"MJPG");
-    pub const I420: Fourcc = Fourcc::new(*b"I420");
-    pub const NONE: Fourcc = Fourcc::from_u32(0);
 }
 
 pub async fn play_directory(
@@ -84,49 +78,26 @@ where
         return Ok(());
     };
     let stream_id = video_stream.stream_id;
-    match video_stream.stream_header.fcc_handler {
-        tag::MJPG => {
-            log::info!("Decoding MJPEG");
-            play_format::<_, _, _, { mjpeg::MAX_ENCODED_SIZE }>(
-                mjpeg::MjpegDecoder::new(),
-                display,
-                touch_detector,
-                &mut avi_parser,
-                stream_id,
-            )
-            .await
-        }
-        tag::NONE => {
-            log::info!("Decoding RGB");
-            play_format::<_, _, _, { rgb::MAX_ENCODED_SIZE }>(
-                rgb::RgbDecoder::new(avi_parser.avi_header.width),
-                display,
-                touch_detector,
-                &mut avi_parser,
-                stream_id,
-            )
-            .await
-        }
-        tag::I420 => {
-            log::info!("Decoding YUV");
-            play_format::<_, _, _, { yuv::MAX_ENCODED_SIZE }>(
-                yuv::YuvDecoder::new(avi_parser.avi_header.width, avi_parser.avi_header.height),
-                display,
-                touch_detector,
-                &mut avi_parser,
-                stream_id,
-            )
-            .await
-        }
-        fcc => {
-            log::error!("Unsupported fourcc {fcc:?}");
-            Ok(())
-        }
+    if !matches!(video_stream.stream_header.fcc_handler, tag::MJPG) {
+        log::error!(
+            "Unsupported fourcc {:?}",
+            video_stream.stream_header.fcc_handler
+        );
+        return Ok(());
     }
+
+    play_format::<_, _, { mjpeg::MAX_ENCODED_SIZE }>(
+        mjpeg::MjpegDecoder::new(),
+        display,
+        touch_detector,
+        &mut avi_parser,
+        stream_id,
+    )
+    .await
 }
 
-async fn play_format<D, DT, R, const BUFFER_SIZE: usize>(
-    mut decoder: D,
+async fn play_format<DT, R, const BUFFER_SIZE: usize>(
+    mut decoder: mjpeg::MjpegDecoder,
     mut display: &mut DT,
     touch_detector: &TouchDetector,
     avi_parser: &mut avi::AviParser<EmbeddedAdapter<R>>,
@@ -134,7 +105,6 @@ async fn play_format<D, DT, R, const BUFFER_SIZE: usize>(
 ) -> Result<(), Error<Infallible, DT::Error>>
 where
     DT: DrawTarget<Color = Rgb565>,
-    D: Decoder<DT>,
     DT::Error: fmt::Debug,
     R: Read + Seek,
 {

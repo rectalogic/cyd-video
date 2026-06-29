@@ -4,7 +4,7 @@ use core::{
     fmt,
 };
 
-use crate::{error::Error, video::decoder::Decoder};
+use crate::error::Error;
 use alloc::vec;
 
 use embedded_graphics::{
@@ -28,20 +28,15 @@ impl MjpegDecoder {
     pub fn new() -> Self {
         Self::default()
     }
-}
 
-impl<D> Decoder<D> for MjpegDecoder
-where
-    D: DrawTarget<Color = Rgb565>,
-    D::Error: fmt::Debug,
-{
-    type ImageDrawable<'a> = JpegDrawable<'a>;
-
-    fn decode_frame<'a>(
+    pub fn decode_frame<'a, E>(
         &mut self,
         frame_buffer: &'a mut [u8],
         frame_size: usize,
-    ) -> Result<Self::ImageDrawable<'a>, Error<Infallible, D::Error>> {
+    ) -> Result<JpegDrawable<'a>, Error<Infallible, E>>
+    where
+        E: fmt::Debug,
+    {
         // 8 byte alignment
         let pool_start = frame_size + frame_buffer[frame_size..].as_ptr().align_offset(8);
         let [jpeg_data, pool_buffer] = frame_buffer
@@ -50,11 +45,15 @@ where
         JpegDrawable::new(pool_buffer, jpeg_data)
     }
 
-    fn render<'a>(
+    pub fn render<'a, D>(
         &'a self,
-        image: Image<Self::ImageDrawable<'a>>,
+        image: Image<JpegDrawable<'a>>,
         display: &mut D,
-    ) -> Result<(), Error<Infallible, D::Error>> {
+    ) -> Result<(), Error<Infallible, D::Error>>
+    where
+        D: DrawTarget<Color = Rgb565>,
+        D::Error: fmt::Debug,
+    {
         image.draw(display).map_err(Error::DisplayError)?;
         Ok(())
     }
