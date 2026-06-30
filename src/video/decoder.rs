@@ -108,19 +108,14 @@ impl fmt::Debug for McuBlock<'_> {
 
 impl MjpegDecoder {
     pub fn new(jpeg_data: &[u8]) -> Result<Self, MjpegError> {
-        let config = jpeg_dec_config_t {
+        let mut config = jpeg_dec_config_t {
             output_type: jpeg_pixel_format_t::JPEG_PIXEL_FORMAT_RGB565_LE,
             block_enable: true,
             ..Default::default()
         };
 
         let mut handle: jpeg_dec_handle_t = core::ptr::null_mut();
-        let ret = unsafe {
-            jpeg_dec_open(
-                &config as *const jpeg_dec_config_t as *mut jpeg_dec_config_t,
-                &mut handle,
-            )
-        };
+        let ret = unsafe { jpeg_dec_open(&mut config, &mut handle) };
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
@@ -132,26 +127,20 @@ impl MjpegDecoder {
         };
 
         let mut header_info = jpeg_dec_header_info_t::default();
-        let ret = unsafe {
-            jpeg_dec_parse_header(
-                handle,
-                &mut jpeg_io as *mut jpeg_dec_io_t,
-                &mut header_info as *mut jpeg_dec_header_info_t,
-            )
-        };
+        let ret = unsafe { jpeg_dec_parse_header(handle, &mut jpeg_io, &mut header_info) };
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
 
         let mut mcu_len: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_outbuf_len(handle, &mut mcu_len as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_outbuf_len(handle, &mut mcu_len) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
             return Err(ret.into());
         }
         let mcu_buffer = McuBuffer::new(mcu_len as usize)?;
 
         let mut mcu_count: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_process_count(handle, &mut mcu_count as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_process_count(handle, &mut mcu_count) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_count == 0 {
             return Err(ret.into());
         }
@@ -179,7 +168,7 @@ impl MjpegDecoder {
         // XXX need to parse header for each frame, so inbuf_remain is set properly?
         for i in 0..self.mcu_count as u16 {
             jpeg_io.out_size = 0;
-            let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io as *mut jpeg_dec_io_t) };
+            let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
                 return Err(ret.into());
             }
