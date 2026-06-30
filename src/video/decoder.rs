@@ -49,9 +49,12 @@ impl From<ffi::c_int> for MjpegError {
 
 pub struct MjpegDecoder {
     handle: jpeg_dec_handle_t,
+    header_info: jpeg_dec_header_info_t,
+    mcu_buffer: McuBuffer,
+    mcu_count: c_int,
 }
 
-pub struct McuBuffer {
+struct McuBuffer {
     ptr: *mut u8,
     size: usize,
 }
@@ -83,8 +86,16 @@ impl Drop for McuBuffer {
     }
 }
 
+pub struct McuBlock<'a> {
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
+    pub data: &'a [u8],
+}
+
 impl MjpegDecoder {
-    pub fn new() -> Result<Self, MjpegError> {
+    pub fn new(jpeg_data: &[u8]) -> Result<Self, MjpegError> {
         let config = jpeg_dec_config_t {
             output_type: jpeg_pixel_format_t::JPEG_PIXEL_FORMAT_RGB565_LE,
             block_enable: true,
@@ -101,15 +112,6 @@ impl MjpegDecoder {
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
-        Ok(Self { handle })
-    }
-
-    pub fn decode<'a, I, F>(&mut self, mut mjpeg: I, mut on_block: F) -> Result<(), MjpegError>
-    where
-        F: FnMut(usize, u16, u16, &[u8]),
-        I: Iterator<Item = &'a [u8]>,
-    {
-        let jpeg_data = mjpeg.next().ok_or(MjpegError::StreamExhausted)?;
 
         let mut jpeg_io = jpeg_dec_io_t {
             inbuf: jpeg_data.as_ptr() as *mut u8,
@@ -120,7 +122,7 @@ impl MjpegDecoder {
         let mut header_info = jpeg_dec_header_info_t::default();
         let ret = unsafe {
             jpeg_dec_parse_header(
-                self.handle,
+                handle,
                 &mut jpeg_io as *mut jpeg_dec_io_t,
                 &mut header_info as *mut jpeg_dec_header_info_t,
             )
@@ -130,37 +132,61 @@ impl MjpegDecoder {
         }
 
         let mut mcu_len: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_outbuf_len(self.handle, &mut mcu_len as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_outbuf_len(handle, &mut mcu_len as *mut c_int) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
             return Err(ret.into());
         }
         let mcu_buffer = McuBuffer::new(mcu_len as usize)?;
-        jpeg_io.outbuf = mcu_buffer.ptr;
 
         let mut mcu_count: c_int = 0;
-        let ret = unsafe { jpeg_dec_get_process_count(self.handle, &mut mcu_count as *mut c_int) };
+        let ret = unsafe { jpeg_dec_get_process_count(handle, &mut mcu_count as *mut c_int) };
         if ret != jpeg_error_t::JPEG_ERR_OK || mcu_count == 0 {
             return Err(ret.into());
         }
 
-        //XXX need to loop over mjpeg iterator, setting inbuf/size
+        Ok(Self {
+            handle,
+            header_info,
+            mcu_count,
+            mcu_buffer,
+        })
+    }
+
+    pub fn decode<F>(&mut self, jpeg_data: &[u8], mut on_block: F) -> Result<(), MjpegError>
+    where
+        F: FnMut(McuBlock),
+    {
+        let mut jpeg_io = jpeg_dec_io_t {
+            inbuf: jpeg_data.as_ptr() as *mut u8,
+            inbuf_len: jpeg_data.len() as i32,
+            outbuf: self.mcu_buffer.ptr,
+            ..Default::default()
+        };
+
         // XXX need to reset jpeg_io.inbuf_remain?
         // XXX need to parse header for each frame, so inbuf_remain is set properly?
-        for i in 0..mcu_count as usize {
+        for i in 0..self.mcu_count as u16 {
             jpeg_io.out_size = 0;
             let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io as *mut jpeg_dec_io_t) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
                 return Err(ret.into());
             }
-            let block_data = &mcu_buffer.as_slice()[0..jpeg_io.out_size as usize];
+            let block_data = &self.mcu_buffer.as_slice()[0..jpeg_io.out_size as usize];
             // Calculate block height: out_size / (width * 2 bytes per pixel)
-            let block_width = header_info.width;
+            let block_width = self.header_info.width;
             let block_height = if block_width > 0 {
                 (jpeg_io.out_size as u16) / (block_width * 2)
             } else {
                 0
             };
-            on_block(i, block_width, block_height, block_data);
+            let block = McuBlock {
+                x: 0,
+                y: i * block_height,
+                width: block_width,
+                height: block_height,
+                data: block_data,
+            };
+            on_block(block);
         }
         Ok(())
     }
