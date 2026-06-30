@@ -1,7 +1,17 @@
 {
-    "name": "cyd-video",
-    "image": "docker.io/espressif/idf-rust:esp32_latest",
-    "remoteEnv": {
-        "AVI_DIRECTORY": "AVI"
-    }
+  "name": "cyd-video",
+  "build": {
+    "dockerfile": "Dockerfile",
+  },
+  "remoteEnv": {
+    "AVI_DIRECTORY": "AVI",
+  },
+  "runArgs": ["--privileged"],
+  "mounts": [
+    {
+      "source": "${localEnv:HOME}/.gitconfig",
+      "target": "/home/esp/.gitconfig",
+      "type": "bind",
+    },
+  ],
 }
