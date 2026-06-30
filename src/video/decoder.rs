@@ -151,7 +151,7 @@ impl MjpegDecoder {
         })
     }
 
-    pub fn decode<F>(&mut self, jpeg_data: &[u8], mut on_block: F) -> Result<(), MjpegError>
+    pub fn decode<F>(&self, jpeg_data: &[u8], mut on_block: F) -> Result<(), MjpegError>
     where
         F: FnMut(McuBlock),
     {
