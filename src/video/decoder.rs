@@ -6,7 +6,7 @@ use crate::video::esp_new_jpeg::{
 };
 use core::{
     ffi::{self, c_int},
-    iter::Peekable,
+    fmt,
 };
 use thiserror::Error;
 
@@ -92,6 +92,18 @@ pub struct McuBlock<'a> {
     pub width: u16,
     pub height: u16,
     pub data: &'a [u8],
+}
+
+impl fmt::Debug for McuBlock<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("McuBlock")
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("data_length", &self.data.len())
+            .finish()
+    }
 }
 
 impl MjpegDecoder {
