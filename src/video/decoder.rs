@@ -49,7 +49,6 @@ impl From<ffi::c_int> for MjpegError {
 
 pub struct MjpegDecoder {
     handle: jpeg_dec_handle_t,
-    header_info: jpeg_dec_header_info_t,
     mcu_buffer: McuBuffer,
     mcu_count: c_int,
 }
@@ -147,7 +146,6 @@ impl MjpegDecoder {
 
         Ok(Self {
             handle,
-            header_info,
             mcu_count,
             mcu_buffer,
         })
@@ -164,9 +162,14 @@ impl MjpegDecoder {
             ..Default::default()
         };
 
-        // XXX need to reset jpeg_io.inbuf_remain?
-        // XXX need to parse header for each frame, so inbuf_remain is set properly?
-        for i in 0..self.mcu_count as u16 {
+        let mut header_info = jpeg_dec_header_info_t::default();
+        let ret = unsafe { jpeg_dec_parse_header(self.handle, &mut jpeg_io, &mut header_info) };
+        if ret != jpeg_error_t::JPEG_ERR_OK {
+            return Err(ret.into());
+        }
+
+        let mut y = 0;
+        for _ in 0..self.mcu_count {
             jpeg_io.out_size = 0;
             let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
@@ -174,7 +177,7 @@ impl MjpegDecoder {
             }
             let block_data = &self.mcu_buffer.as_slice()[0..jpeg_io.out_size as usize];
             // Calculate block height: out_size / (width * 2 bytes per pixel)
-            let block_width = self.header_info.width;
+            let block_width = header_info.width;
             let block_height = if block_width > 0 {
                 (jpeg_io.out_size as u16) / (block_width * 2)
             } else {
@@ -182,12 +185,13 @@ impl MjpegDecoder {
             };
             let block = McuBlock {
                 x: 0,
-                y: i * block_height,
+                y,
                 width: block_width,
                 height: block_height,
                 data: block_data,
             };
             on_block(block);
+            y += block_height;
         }
         Ok(())
     }
