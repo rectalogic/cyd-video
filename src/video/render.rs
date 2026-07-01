@@ -5,7 +5,7 @@ use embedded_graphics::{
     image::ImageDrawable,
     pixelcolor::{Rgb565, raw::RawU16},
     prelude::*,
-    primitives::Rectangle as GraphicsRectangle,
+    primitives::Rectangle,
 };
 
 use crate::video::decoder::MjpegDecoder;
@@ -35,12 +35,9 @@ impl ImageDrawable for JpegDrawable<'_, '_> {
     {
         let display_error: Cell<Option<D::Error>> = Cell::new(None);
         if let Err(err) = self.decoder.decode(self.jpeg_data, |block| {
-            let target_rect = GraphicsRectangle::with_corners(
+            let target_rect = Rectangle::new(
                 Point::new(block.x as i32, block.y as i32),
-                Point::new(
-                    (block.x + block.width) as i32,
-                    (block.y + block.height) as i32,
-                ),
+                Size::new(block.width as u32, block.height as u32),
             );
             let pixels = block
                 .data
@@ -66,7 +63,7 @@ impl ImageDrawable for JpegDrawable<'_, '_> {
     fn draw_sub_image<D>(
         &self,
         target: &mut D,
-        area: &GraphicsRectangle,
+        area: &Rectangle,
     ) -> Result<(), <D as DrawTarget>::Error>
     where
         D: DrawTarget<Color = Rgb565>,
