@@ -5,6 +5,7 @@ use crate::{
     error::Error,
     sdcard::SdCard,
     touch::TouchDetector,
+    video::{decoder::MjpegDecoder, render::JpegDrawable},
 };
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
@@ -12,9 +13,9 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::ShortFileName;
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
-mod decoder;
+pub mod decoder;
 mod esp_new_jpeg;
-pub mod mjpeg;
+mod render;
 
 mod tag {
     use super::Fourcc;
@@ -74,7 +75,7 @@ where
     DT: DrawTarget<Color = Rgb565>,
     DT::Error: fmt::Debug,
 {
-    let mut avi_parser = avi::AviParser::new(RiffParser::new(EmbeddedAdapter(reader)))?;
+    let avi_parser = avi::AviParser::new(RiffParser::new(EmbeddedAdapter(reader)))?;
     let Some(video_stream) = avi_parser.find_best_stream::<avi::VideoStream>() else {
         log::error!("No video stream found");
         return Ok(());
@@ -88,41 +89,28 @@ where
         return Ok(());
     }
 
-    play_format::<_, _, { mjpeg::MAX_ENCODED_SIZE }>(
-        mjpeg::MjpegDecoder::new(),
-        display,
-        touch_detector,
-        &mut avi_parser,
-        stream_id,
-    )
-    .await
-}
-
-async fn play_format<DT, R, const BUFFER_SIZE: usize>(
-    mut decoder: mjpeg::MjpegDecoder,
-    mut display: &mut DT,
-    touch_detector: &TouchDetector,
-    avi_parser: &mut avi::AviParser<EmbeddedAdapter<R>>,
-    stream_id: Fourcc,
-) -> Result<(), Error<Infallible, DT::Error>>
-where
-    DT: DrawTarget<Color = Rgb565>,
-    DT::Error: fmt::Debug,
-    R: Read + Seek,
-{
     let frame_duration = Duration::from_micros(avi_parser.avi_header.micro_sec_per_frame as u64);
+    // 15K buffer to read compressed JPG 320x240 image
+    const BUFFER_SIZE: usize = 15 * 1024;
     let mut buffer = [0u8; BUFFER_SIZE];
 
     display.clear(Rgb565::BLACK).expect("clear");
+    let decoder = MjpegDecoder::new()?;
+    let mut size = None;
     let mut start: Option<Instant> = None;
     for (count, chunk) in avi_parser.movi_chunks(stream_id).enumerate() {
         let chunk = chunk?;
-        let size = chunk.data_size() as usize;
-        avi_parser
-            .riff_parser()
-            .read_data(chunk, &mut buffer[..size])?;
-        let pixels = decoder.decode_frame(&mut buffer, size)?;
-        let image = Image::with_center(&pixels, CENTER);
+        let jpeg_data = &mut buffer[..(chunk.data_size() as usize)];
+        avi_parser.riff_parser().read_data(chunk, jpeg_data)?;
+        let jpeg_size = match size {
+            Some(size) => size,
+            None => {
+                let (w, h) = decoder.prepare(jpeg_data)?;
+                *size.insert(Size::new(w as u32, h as u32))
+            }
+        };
+        let drawable = JpegDrawable::new(&decoder, jpeg_size, jpeg_data);
+        let image = Image::with_center(&drawable, CENTER);
         if let Some(start) = start {
             let elapsed = start.elapsed();
             if frame_duration > elapsed {
@@ -132,7 +120,7 @@ where
             }
         }
         start = Some(Instant::now());
-        decoder.render(image, display.deref_mut())?;
+        image.draw(display).map_err(Error::DisplayError)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
             display.clear(Rgb565::BLUE).expect("clear");

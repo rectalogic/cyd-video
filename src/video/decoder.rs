@@ -5,6 +5,7 @@ use crate::video::esp_new_jpeg::{
     jpeg_pixel_format_t,
 };
 use core::{
+    cell::RefCell,
     ffi::{self, c_int},
     fmt,
 };
@@ -49,10 +50,16 @@ impl From<ffi::c_int> for MjpegError {
 
 pub struct MjpegDecoder {
     handle: jpeg_dec_handle_t,
-    mcu_buffer: Option<McuBuffer>,
-    mcu_count: c_int,
+    mcu: RefCell<Mcu>,
 }
 
+#[derive(Default)]
+struct Mcu {
+    buffer: McuBuffer,
+    count: c_int,
+}
+
+#[derive(Default)]
 struct McuBuffer {
     ptr: *mut u8,
     size: usize,
@@ -121,14 +128,28 @@ impl MjpegDecoder {
 
         Ok(Self {
             handle,
-            mcu_buffer: None,
-            mcu_count: 0,
+            mcu: RefCell::default(),
         })
     }
 
-    pub fn decode<F>(&mut self, jpeg_data: &[u8], mut on_block: F) -> Result<(), MjpegError>
+    pub fn prepare(&self, jpeg_data: &[u8]) -> Result<(u16, u16), MjpegError> {
+        let mut jpeg_io = jpeg_dec_io_t {
+            inbuf: jpeg_data.as_ptr() as *mut u8,
+            inbuf_len: jpeg_data.len() as i32,
+            ..Default::default()
+        };
+
+        let mut header_info = jpeg_dec_header_info_t::default();
+        let ret = unsafe { jpeg_dec_parse_header(self.handle, &mut jpeg_io, &mut header_info) };
+        if ret != jpeg_error_t::JPEG_ERR_OK {
+            return Err(ret.into());
+        }
+        Ok((header_info.width, header_info.height))
+    }
+
+    pub fn decode<F>(&self, jpeg_data: &[u8], mut on_block: F) -> Result<(), MjpegError>
     where
-        F: FnMut(McuBlock),
+        F: FnMut(McuBlock) -> bool,
     {
         let mut jpeg_io = jpeg_dec_io_t {
             inbuf: jpeg_data.as_ptr() as *mut u8,
@@ -142,33 +163,29 @@ impl MjpegDecoder {
             return Err(ret.into());
         }
 
-        let (mcu_buffer, mcu_count) = match self.mcu_buffer {
-            None => {
-                let mut mcu_len: c_int = 0;
-                let ret = unsafe { jpeg_dec_get_outbuf_len(self.handle, &mut mcu_len) };
-                if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
-                    return Err(ret.into());
-                }
-                let ret = unsafe { jpeg_dec_get_process_count(self.handle, &mut self.mcu_count) };
-                if ret != jpeg_error_t::JPEG_ERR_OK || self.mcu_count == 0 {
-                    return Err(ret.into());
-                }
-                let mcu_buffer = self.mcu_buffer.insert(McuBuffer::new(mcu_len as usize)?);
-                (mcu_buffer, self.mcu_count)
+        let mut mcu = self.mcu.borrow_mut();
+        if mcu.buffer.ptr.is_null() {
+            let mut mcu_len: c_int = 0;
+            let ret = unsafe { jpeg_dec_get_outbuf_len(self.handle, &mut mcu_len) };
+            if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
+                return Err(ret.into());
             }
-
-            Some(ref mut mcu_buffer) => (mcu_buffer, self.mcu_count),
-        };
-        jpeg_io.outbuf = mcu_buffer.ptr;
+            let ret = unsafe { jpeg_dec_get_process_count(self.handle, &mut mcu.count) };
+            if ret != jpeg_error_t::JPEG_ERR_OK || mcu.count == 0 {
+                return Err(ret.into());
+            }
+            mcu.buffer = McuBuffer::new(mcu_len as usize)?;
+        }
+        jpeg_io.outbuf = mcu.buffer.ptr;
 
         let mut y = 0;
-        for _ in 0..mcu_count {
+        for _ in 0..mcu.count {
             jpeg_io.out_size = 0;
             let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
                 return Err(ret.into());
             }
-            let block_data = &mcu_buffer.as_slice()[0..jpeg_io.out_size as usize];
+            let block_data = &mcu.buffer.as_slice()[0..jpeg_io.out_size as usize];
             // Calculate block height: out_size / (width * 2 bytes per pixel)
             let block_width = header_info.width;
             let block_height = if block_width > 0 {
@@ -183,7 +200,9 @@ impl MjpegDecoder {
                 height: block_height,
                 data: block_data,
             };
-            on_block(block);
+            if !on_block(block) {
+                return Ok(());
+            }
             y += block_height;
         }
         Ok(())

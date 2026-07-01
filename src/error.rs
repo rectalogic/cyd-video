@@ -4,6 +4,8 @@ use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
 use riffparse::binrw;
 
+use crate::video::decoder::MjpegError;
+
 #[derive(Debug)]
 pub enum Error<IO, DI>
 where
@@ -17,7 +19,7 @@ where
     ReadError(IO),
     ReadExactError(ReadExactError<IO>),
     BinReadError(binrw::Error),
-    DecodeErrors(tjpgdec_rs::Error),
+    DecodeErrors(MjpegError),
 }
 
 impl<IO, DI> From<ConfigError> for Error<IO, DI>
@@ -67,5 +69,15 @@ where
 {
     fn from(value: binrw::Error) -> Self {
         Error::BinReadError(value)
+    }
+}
+
+impl<IO, DI> From<MjpegError> for Error<IO, DI>
+where
+    IO: fmt::Debug,
+    DI: fmt::Debug,
+{
+    fn from(value: MjpegError) -> Self {
+        Error::DecodeErrors(value)
     }
 }
