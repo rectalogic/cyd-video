@@ -10,10 +10,15 @@ fn main() {
 }
 
 fn esp_new_jpeg() {
+    #[cfg(feature = "esp32")]
+    let chip = "esp32";
+    #[cfg(feature = "esp32s3")]
+    let chip = "esp32s3";
+
     // Link the esp_new_jpeg C library for JPEG decoding
     println!(
-        "cargo:rustc-link-search=native={}/esp-adf-libs/esp_new_jpeg/lib/esp32",
-        std::env::var("CARGO_MANIFEST_DIR").unwrap()
+        "cargo:rustc-link-search=native={}/esp-adf-libs/esp_new_jpeg/lib/{chip}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
     );
     println!("cargo:rustc-link-lib=static=esp_new_jpeg");
 

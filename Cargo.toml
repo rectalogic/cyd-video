@@ -20,30 +20,42 @@ log = [
     "embassy-executor/log",
     "embassy-time/log",
 ]
+esp32 = [
+    "esp-hal/esp32",
+    "esp-rtos/esp32",
+    "esp-bootloader-esp-idf/esp32",
+    "esp-backtrace/esp32",
+    "esp-println/esp32",
+]
+esp32s3 = [
+    "esp-hal/esp32s3",
+    "esp-rtos/esp32s3",
+    "esp-bootloader-esp-idf/esp32s3",
+    "esp-backtrace/esp32s3",
+    "esp-println/esp32s3",
+]
 
 [build-dependencies]
 bindgen = "0.72.1"
 
 [dependencies]
-esp-hal = { version = "~1.1.0", features = ["esp32", "unstable"] }
+esp-hal = { version = "~1.1.0", features = ["unstable"] }
 esp-rtos = { version = "0.3.0", features = [
   "embassy",
   "esp-alloc",
-  "esp32",
 ] }
-esp-bootloader-esp-idf = { version = "0.5.0", features = ["esp32"] }
+esp-bootloader-esp-idf = "0.5.0"
 esp-alloc = "0.10.0"
 log = "0.4.27"
 embassy-executor = "0.10.0"
 embassy-time = "0.5.0"
 esp-backtrace = { version = "0.19.0", features = [
-  "esp32",
   "panic-handler",
   "println",
 ] }
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
-esp-println = { version = "0.17.0", features = ["esp32"] }
+esp-println      = "0.17.0"
 
 embedded-hal-bus = "0.3.0"
 embedded-hal = "1.0.0"
@@ -54,7 +66,6 @@ embedded-graphics = "0.8.1"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="7b13b7b", default-features = false }
 embedded-io = "0.6.1"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-tjpgdec-rs = { git = "https://github.com/rectalogic/tjpgdec-rs.git", rev = "8ab4c52", default-features = false, features = ["fast-decode-1"] }
 riffparse = { git = "https://github.com/rectalogic/riffparse.git", rev = "690f5ba", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
 

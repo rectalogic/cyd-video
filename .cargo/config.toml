@@ -1,6 +1,9 @@
 [target.xtensa-esp32-none-elf]
 runner = "espflash flash --monitor --chip esp32"
 
+[target.xtensa-esp32s3-none-elf]
+runner = "espflash flash --monitor--chip esp32s3"
+
 [env]
 ESP_LOG="info"
 
@@ -9,10 +12,11 @@ rustflags = [
   "-C", "link-arg=-nostartfiles",
 ]
 
-target = "xtensa-esp32-none-elf"
-
 [unstable]
 build-std = ["alloc", "core"]
 
 [alias]
-xtask = "run --target=host-tuple --manifest-path ./xtask/Cargo.toml --"
+run-esp32 = "run --release --config=./.cargo/config.esp32.toml --features=esp32"
+run-esp32s3 = "run --release --config=./.cargo/config.esp32s3.toml --features=esp32s3"
+build-esp32 = "build --config=./.cargo/config.esp32.toml --features=esp32"
+build-esp32s3 = "build --config=./.cargo/config.esp32s3.toml --features=esp32s3"
