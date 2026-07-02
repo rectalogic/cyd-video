@@ -1,8 +1,10 @@
 [target.xtensa-esp32-none-elf]
 runner = "espflash flash --monitor --chip esp32"
+rustflags = ["--cfg", "esp32"]
 
 [target.xtensa-esp32s3-none-elf]
-runner = "espflash flash --monitor--chip esp32s3"
+runner = "espflash flash --monitor --chip esp32s3"
+rustflags = ["--cfg", "esp32s3"]
 
 [env]
 ESP_LOG="info"

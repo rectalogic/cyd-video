@@ -41,30 +41,56 @@ async fn main(_spawner: Spawner) -> ! {
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
     let mut display_buffer = [0u8; 512];
-    let mut display = cyd_player::display::Display::new(
-        &mut display_buffer,
-        cyd_player::display::Peripherals {
-            spi2: peripherals.SPI2,
-            dc: peripherals.GPIO2,
-            rst: peripherals.GPIO4,
-            mosi: peripherals.GPIO13,
-            sclk: peripherals.GPIO14,
-            cs: peripherals.GPIO15,
-            bl: peripherals.GPIO21,
-        },
-    );
-    let mut sdcard = match cyd_player::sdcard::SdCard::new(cyd_player::sdcard::Peripherals {
+    #[cfg(esp32)]
+    let display_peripherals = cyd_player::display::Peripherals {
+        spi2: peripherals.SPI2,
+        dc: peripherals.GPIO2,
+        rst: peripherals.GPIO4,
+        mosi: peripherals.GPIO13,
+        sclk: peripherals.GPIO14,
+        cs: peripherals.GPIO15,
+        bl: peripherals.GPIO21,
+    };
+    #[cfg(esp32s3)]
+    let display_peripherals = cyd_player::display::Peripherals {
+        spi2: peripherals.SPI2,
+        dc: peripherals.GPIO46,
+        mosi: peripherals.GPIO11,
+        sclk: peripherals.GPIO12,
+        cs: peripherals.GPIO10,
+        bl: peripherals.GPIO45,
+    };
+    let mut display = cyd_player::display::Display::new(&mut display_buffer, display_peripherals);
+    #[cfg(esp32)]
+    let sdcard_peripherals = cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         cs: peripherals.GPIO5,
         sclk: peripherals.GPIO18,
         miso: peripherals.GPIO19,
         mosi: peripherals.GPIO23,
-    }) {
+    };
+    #[cfg(esp32s3)]
+    let sdcard_peripherals = cyd_player::sdcard::Peripherals {
+        spi3: peripherals.SPI3,
+        cs: peripherals.GPIO47,
+        sclk: peripherals.GPIO38,
+        miso: peripherals.GPIO39,
+        mosi: peripherals.GPIO40,
+    };
+    let mut sdcard = match cyd_player::sdcard::SdCard::new(sdcard_peripherals) {
         Ok(sdcard) => sdcard,
         Err(e) => display.message(format_args!("SD card error: {e:?}")),
     };
 
-    let touch_detector = TouchDetector::new(peripherals.IO_MUX, peripherals.GPIO36);
+    #[cfg(esp32)]
+    let touch_peripherals = cyd_player::touch::Peripherals {
+        irq: peripherals.GPIO36,
+    };
+    #[cfg(esp32s3)]
+    let touch_peripherals = cyd_player::touch::Peripherals {
+        irq: peripherals.GPIO17,
+    };
+    let touch_detector = TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
 
     let avi_dir = env!("AVI_DIRECTORY");
     log::info!("Loading dir {avi_dir}");

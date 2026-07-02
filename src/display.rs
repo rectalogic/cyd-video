@@ -18,16 +18,21 @@ use embedded_hal::{
     digital::{ErrorType, OutputPin},
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
+#[cfg(esp32)]
+use esp_hal::peripherals::{GPIO2, GPIO4, GPIO13, GPIO14, GPIO15, GPIO21, SPI2};
+#[cfg(esp32s3)]
+use esp_hal::peripherals::{GPIO10, GPIO11, GPIO12, GPIO45, GPIO46, SPI2};
 use esp_hal::{
     Blocking,
     gpio::{Level, Output, OutputConfig},
-    peripherals::{GPIO2, GPIO4, GPIO13, GPIO14, GPIO15, GPIO21, SPI2},
     spi::{
         Mode as SpiMode,
         master::{Config as SpiConfig, Spi},
     },
     time::Rate,
 };
+#[cfg(esp32s3)]
+use mipidsi::NoResetPin;
 use mipidsi::{
     Builder,
     interface::SpiInterface,
@@ -35,11 +40,15 @@ use mipidsi::{
     options::{ColorOrder, Orientation, Rotation},
 };
 
-type DisplayType<'a> = mipidsi::Display<
+type DisplayTypeRst<'a, RST> = mipidsi::Display<
     SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, NoCs, NoDelay>, Output<'a>>,
     ILI9341Rgb565,
-    Output<'a>,
+    RST,
 >;
+#[cfg(esp32)]
+type DisplayType<'a> = DisplayTypeRst<'a, Output<'a>>;
+#[cfg(esp32s3)]
+type DisplayType<'a> = DisplayTypeRst<'a, NoResetPin>;
 
 pub const DISPLAY_WIDTH: u32 = ILI9341Rgb565::FRAMEBUFFER_SIZE.0 as u32;
 pub const DISPLAY_HEIGHT: u32 = ILI9341Rgb565::FRAMEBUFFER_SIZE.1 as u32;
@@ -50,13 +59,30 @@ pub const CENTER: Point = Point::new(
 
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
+    #[cfg(esp32)]
     pub dc: GPIO2<'static>,
+    #[cfg(esp32s3)]
+    pub dc: GPIO46<'static>,
+    #[cfg(esp32)]
     pub rst: GPIO4<'static>,
-    // miso GPIO12 not needed
+    // No RST for esp32s3
+    // miso GPIO12(esp32)/GPIO11(esp32s3) not needed
+    #[cfg(esp32)]
     pub mosi: GPIO13<'static>,
+    #[cfg(esp32s3)]
+    pub mosi: GPIO11<'static>,
+    #[cfg(esp32)]
     pub sclk: GPIO14<'static>,
+    #[cfg(esp32s3)]
+    pub sclk: GPIO12<'static>,
+    #[cfg(esp32)]
     pub cs: GPIO15<'static>,
+    #[cfg(esp32s3)]
+    pub cs: GPIO10<'static>,
+    #[cfg(esp32)]
     pub bl: GPIO21<'static>,
+    #[cfg(esp32s3)]
+    pub bl: GPIO45<'static>,
 }
 
 pub struct Display<'a> {
@@ -78,14 +104,20 @@ impl<'a> Display<'a> {
         .with_cs(peripherals.cs);
 
         let dc = Output::new(peripherals.dc, Level::Low, OutputConfig::default());
-        let mut rst = Output::new(peripherals.rst, Level::Low, OutputConfig::default());
-        rst.set_high();
 
         let spi_dev = ExclusiveDevice::new_no_delay(spi, NoCs).expect("infallible");
         let interface = SpiInterface::new(spi_dev, dc, display_buffer);
 
-        let mut display = Builder::new(ILI9341Rgb565, interface)
-            .reset_pin(rst)
+        #[cfg(esp32)]
+        let mut display_builder = {
+            let mut rst = Output::new(peripherals.rst, Level::Low, OutputConfig::default());
+            rst.set_high();
+            Builder::new(ILI9341Rgb565, interface).reset_pin(rst)
+        };
+        #[cfg(esp32s3)]
+        let mut display_builder = Builder::new(ILI9341Rgb565, interface);
+
+        display_builder = display_builder
             .display_size(
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.0,
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.1,
@@ -95,7 +127,9 @@ impl<'a> Display<'a> {
                 Orientation::new()
                     .rotate(Rotation::Deg270)
                     .flip_horizontal(),
-            )
+            );
+
+        let mut display = display_builder
             .init(&mut Delay)
             .expect("display builder init");
 

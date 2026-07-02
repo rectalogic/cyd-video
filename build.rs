@@ -3,6 +3,8 @@ use std::{env, path::PathBuf};
 fn main() {
     linker_be_nice();
 
+    println!("cargo::rustc-check-cfg=cfg(esp32)");
+    println!("cargo::rustc-check-cfg=cfg(esp32s3)");
     esp_new_jpeg();
 
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
