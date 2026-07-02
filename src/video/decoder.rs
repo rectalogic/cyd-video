@@ -49,8 +49,12 @@ impl From<ffi::c_int> for MjpegError {
 }
 
 pub struct MjpegDecoder {
+    inner: RefCell<Inner>,
+}
+
+struct Inner {
     handle: jpeg_dec_handle_t,
-    mcu: RefCell<Mcu>,
+    mcu: Mcu,
 }
 
 #[derive(Default)]
@@ -127,8 +131,10 @@ impl MjpegDecoder {
         }
 
         Ok(Self {
-            handle,
-            mcu: RefCell::default(),
+            inner: RefCell::new(Inner {
+                handle,
+                mcu: Mcu::default(),
+            }),
         })
     }
 
@@ -140,7 +146,9 @@ impl MjpegDecoder {
         };
 
         let mut header_info = jpeg_dec_header_info_t::default();
-        let ret = unsafe { jpeg_dec_parse_header(self.handle, &mut jpeg_io, &mut header_info) };
+        let ret = unsafe {
+            jpeg_dec_parse_header(self.inner.borrow().handle, &mut jpeg_io, &mut header_info)
+        };
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
@@ -157,35 +165,35 @@ impl MjpegDecoder {
             ..Default::default()
         };
 
+        let mut inner = self.inner.borrow_mut();
         let mut header_info = jpeg_dec_header_info_t::default();
-        let ret = unsafe { jpeg_dec_parse_header(self.handle, &mut jpeg_io, &mut header_info) };
+        let ret = unsafe { jpeg_dec_parse_header(inner.handle, &mut jpeg_io, &mut header_info) };
         if ret != jpeg_error_t::JPEG_ERR_OK {
             return Err(ret.into());
         }
 
-        let mut mcu = self.mcu.borrow_mut();
-        if mcu.buffer.ptr.is_null() {
+        if inner.mcu.buffer.ptr.is_null() {
             let mut mcu_len: c_int = 0;
-            let ret = unsafe { jpeg_dec_get_outbuf_len(self.handle, &mut mcu_len) };
+            let ret = unsafe { jpeg_dec_get_outbuf_len(inner.handle, &mut mcu_len) };
             if ret != jpeg_error_t::JPEG_ERR_OK || mcu_len == 0 {
                 return Err(ret.into());
             }
-            let ret = unsafe { jpeg_dec_get_process_count(self.handle, &mut mcu.count) };
-            if ret != jpeg_error_t::JPEG_ERR_OK || mcu.count == 0 {
+            let ret = unsafe { jpeg_dec_get_process_count(inner.handle, &mut inner.mcu.count) };
+            if ret != jpeg_error_t::JPEG_ERR_OK || inner.mcu.count == 0 {
                 return Err(ret.into());
             }
-            mcu.buffer = McuBuffer::new(mcu_len as usize)?;
+            inner.mcu.buffer = McuBuffer::new(mcu_len as usize)?;
         }
-        jpeg_io.outbuf = mcu.buffer.ptr;
+        jpeg_io.outbuf = inner.mcu.buffer.ptr;
 
         let mut y = 0;
-        for _ in 0..mcu.count {
+        for _ in 0..inner.mcu.count {
             jpeg_io.out_size = 0;
-            let ret = unsafe { jpeg_dec_process(self.handle, &mut jpeg_io) };
+            let ret = unsafe { jpeg_dec_process(inner.handle, &mut jpeg_io) };
             if ret != jpeg_error_t::JPEG_ERR_OK {
                 return Err(ret.into());
             }
-            let block_data = &mcu.buffer.as_slice()[0..jpeg_io.out_size as usize];
+            let block_data = &inner.mcu.buffer.as_slice()[0..jpeg_io.out_size as usize];
             // Calculate block height: out_size / (width * 2 bytes per pixel)
             let block_width = header_info.width;
             let block_height = if block_width > 0 {
@@ -211,9 +219,10 @@ impl MjpegDecoder {
 
 impl Drop for MjpegDecoder {
     fn drop(&mut self) {
-        if !self.handle.is_null() {
+        let handle = self.inner.borrow_mut().handle;
+        if !handle.is_null() {
             unsafe {
-                jpeg_dec_close(self.handle);
+                jpeg_dec_close(handle);
             }
         }
     }
