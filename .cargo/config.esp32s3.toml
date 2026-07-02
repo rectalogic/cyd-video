@@ -1,5 +1,0 @@
-[env]
-ESP_CONFIG_CHIP="esp32s3"
-
-[build]
-target = "xtensa-esp32s3-none-elf"

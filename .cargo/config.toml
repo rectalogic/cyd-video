@@ -16,7 +16,7 @@ rustflags = [
 build-std = ["alloc", "core"]
 
 [alias]
-run-esp32 = "run --release --config=./.cargo/config.esp32.toml --features=esp32"
-run-esp32s3 = "run --release --config=./.cargo/config.esp32s3.toml --features=esp32s3"
-build-esp32 = "build --config=./.cargo/config.esp32.toml --features=esp32"
-build-esp32s3 = "build --config=./.cargo/config.esp32s3.toml --features=esp32s3"
+run-esp32 = "run --target=xtensa-esp32-none-elf"
+run-esp32s3 = "run --target=xtensa-esp32s3-none-elf"
+build-esp32 = "build --target=xtensa-esp32-none-elf"
+build-esp32s3 = "build --target=xtensa-esp32s3-none-elf"

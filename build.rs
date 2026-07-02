@@ -10,10 +10,12 @@ fn main() {
 }
 
 fn esp_new_jpeg() {
-    #[cfg(feature = "esp32")]
-    let chip = "esp32";
-    #[cfg(feature = "esp32s3")]
-    let chip = "esp32s3";
+    let target = std::env::var("TARGET").unwrap();
+    let chip = match target.as_str() {
+        t if t.starts_with("xtensa-esp32-") => "esp32",
+        t if t.starts_with("xtensa-esp32s3-") => "esp32s3",
+        _ => panic!("unsupported target: {target}"),
+    };
 
     // Link the esp_new_jpeg C library for JPEG decoding
     println!(

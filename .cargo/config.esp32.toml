@@ -1,5 +1,0 @@
-[env]
-ESP_CONFIG_CHIP="esp32"
-
-[build]
-target = "xtensa-esp32-none-elf"
