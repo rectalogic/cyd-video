@@ -11,7 +11,10 @@ pub use bindings::*;
 
 extern crate alloc;
 use alloc::alloc::{Layout, alloc, dealloc};
-use core::{ffi::c_void, ptr};
+use core::{
+    ffi::{CStr, c_char, c_void},
+    ptr,
+};
 
 // ---------------------------------------------------------------------------
 // ESP-IDF heap_caps stubs — the .a library calls these internally
@@ -88,15 +91,57 @@ pub extern "C" fn heap_caps_aligned_calloc(
 // ESP-IDF logging stubs — the .a library calls these for diagnostics
 // ---------------------------------------------------------------------------
 
+pub mod esp_log_level_t {
+    #[doc = " @brief  Log level"]
+    pub type Type = ::core::ffi::c_int;
+    #[doc = "< No log output"]
+    pub const _ESP_LOG_NONE: Type = 0;
+    #[doc = "< Critical errors, software module can not recover on its own"]
+    pub const ESP_LOG_ERROR: Type = 1;
+    #[doc = "< Error conditions from which recovery measures have been taken"]
+    pub const ESP_LOG_WARN: Type = 2;
+    #[doc = "< Information messages which describe normal flow of events"]
+    pub const ESP_LOG_INFO: Type = 3;
+    #[doc = "< Extra information which is not necessary for normal use (values, pointers, sizes, etc)."]
+    pub const ESP_LOG_DEBUG: Type = 4;
+    #[doc = "< Bigger chunks of debugging information, or frequent messages which can potentially flood the output."]
+    pub const ESP_LOG_VERBOSE: Type = 5;
+    #[doc = "< Number of levels supported"]
+    pub const _ESP_LOG_MAX: Type = 6;
+}
+
 /// `void esp_log_write(esp_log_level_t level, const char *tag, const char *format, ...)`
 #[unsafe(no_mangle)]
-pub extern "C" fn esp_log_write(_level: u32, _tag: *const u8, _fmt: *const u8) {
-    // no-op: variadic printf formatting is not practical in no_std
+pub extern "C" fn esp_log_write(
+    level: esp_log_level_t::Type,
+    tag: *const c_char,
+    format: *const c_char,
+) {
+    // variadic printf formatting is not practical in no_std
+    if tag.is_null() || format.is_null() {
+        return;
+    }
+
+    let (tag, format) = unsafe {
+        (
+            CStr::from_ptr(tag).to_string_lossy(),
+            CStr::from_ptr(format).to_string_lossy(),
+        )
+    };
+
+    match level {
+        esp_log_level_t::ESP_LOG_ERROR => log::error!("[{tag}] {format}"),
+        esp_log_level_t::ESP_LOG_WARN => log::warn!("[{tag}] {format}"),
+        esp_log_level_t::ESP_LOG_INFO => log::info!("[{tag}] {format}"),
+        esp_log_level_t::ESP_LOG_DEBUG => log::debug!("[{tag}] {format}"),
+        esp_log_level_t::ESP_LOG_VERBOSE => log::trace!("[{tag}] {format}"),
+        _ => {}
+    }
 }
 
 /// `void esp_log_level_set(const char *tag, esp_log_level_t level)`
 #[unsafe(no_mangle)]
-pub extern "C" fn esp_log_level_set(_tag: *const u8, _level: u32) {}
+pub extern "C" fn esp_log_level_set(_tag: *const u8, _level: esp_log_level_t::Type) {}
 
 /// `uint32_t esp_log_timestamp(void)`
 #[unsafe(no_mangle)]
