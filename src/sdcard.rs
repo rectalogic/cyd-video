@@ -1,7 +1,6 @@
 use crate::error::Error;
 use core::{convert::Infallible, ops::AsyncFnOnce};
 use embassy_time::Delay;
-use embedded_hal::{delay::DelayNs};
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{
     SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
@@ -50,6 +49,7 @@ pub struct SdCard {
 
 impl SdCard {
     pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible, Infallible>> {
+        let cs = Output::new(peripherals.cs, Level::High, OutputConfig::default());
         let spi = Spi::new(
             peripherals.spi3,
             SpiConfig::default()
@@ -60,15 +60,19 @@ impl SdCard {
         .with_mosi(peripherals.mosi)
         .with_miso(peripherals.miso);
 
-        let mut cs = Output::new(peripherals.cs, Level::High, OutputConfig::default());
-        cs.set_high();
-        Delay.delay_ms(10);
-
         let spi_dev = ExclusiveDevice::new(spi, cs, Delay).unwrap();
         let sdcard = embedded_sdmmc::SdCard::new(spi_dev, Delay);
 
         // Force initialization
         let _ = sdcard.num_bytes();
+
+        // Reclock
+        sdcard.spi(|spi| {
+            spi.bus_mut().apply_config(
+                &SpiConfig::default()
+                    .with_frequency(Rate::from_mhz(40))
+                    .with_mode(SpiMode::_0),)
+        })?;
 
         let volume_manager = VolumeManager::new(sdcard, DummyTimesource);
 
