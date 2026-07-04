@@ -18,6 +18,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c583acf993cf4245c4acb0a2cc2ab1f9cc097de73411bb6d3647ff6af2b1013d"
 
 [[package]]
+name = "arbitrary-int"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "993a810118f8f37e9c4411c86f1c4c940a09a7ab34b7bf2d88d06f50c553fab7"
+
+[[package]]
 name = "array-init"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -79,6 +85,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "376404e55ec40d0d6f8b4b7df3f87b87954bd987f0cf9a7207ea3b6ea5c9add4"
 dependencies = [
  "either",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "bitbybit"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71d2a3353d70ac1091a33cbf31fc7e77b19091538a7e306e3740712af19807ca"
+dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
@@ -219,7 +236,7 @@ dependencies = [
  "embedded-graphics",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
- "embedded-io 0.6.1",
+ "embedded-io 0.7.1",
  "embedded-sdmmc",
  "esp-alloc",
  "esp-backtrace",
@@ -637,13 +654,17 @@ dependencies = [
 [[package]]
 name = "embedded-sdmmc"
 version = "0.9.0"
-source = "git+https://github.com/rust-embedded-community/embedded-sdmmc-rs.git?rev=7b13b7b#7b13b7b4bc7e78675886e60e57ec3e2c1b6e4a9c"
+source = "git+https://github.com/rust-embedded-community/embedded-sdmmc-rs.git?rev=ce5710f#ce5710f8f9f5651912d3c275b321b0451dd6e89f"
 dependencies = [
+ "arbitrary-int",
+ "bitbybit",
+ "bitflags",
  "byteorder",
  "embedded-hal 1.0.0",
- "embedded-io 0.6.1",
+ "embedded-io 0.7.1",
  "heapless 0.9.2",
  "log",
+ "thiserror",
 ]
 
 [[package]]
@@ -1495,11 +1516,11 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "riffparse"
-version = "0.1.0"
-source = "git+https://github.com/rectalogic/riffparse.git?rev=690f5ba#690f5ba301d4435f8ba253b2f36f39f48f90c929"
+version = "0.2.0"
+source = "git+https://github.com/rectalogic/riffparse.git?tag=0.2.0#c926adc1f44457628baaf476cff5de13f1df8245"
 dependencies = [
  "binrw",
- "embedded-io 0.6.1",
+ "embedded-io 0.7.1",
 ]
 
 [[package]]

@@ -1,4 +1,8 @@
-use core::{convert::Infallible, fmt, ops::DerefMut};
+use core::{
+    convert::Infallible,
+    fmt,
+    ops::{ControlFlow, DerefMut},
+};
 
 use crate::{
     display::{CENTER, Display},
@@ -43,6 +47,7 @@ pub async fn play_directory(
                     filenames[index] = Some(entry.name);
                     index += 1;
                 };
+                ControlFlow::Continue(())
             }) {
                 display.message(format_args!("directory {avi_dir} error: {e:?}"))
             };
