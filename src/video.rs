@@ -5,7 +5,7 @@ use crate::{
     error::Error,
     sdcard::SdCard,
     touch::TouchDetector,
-    video::{decoder::MjpegDecoder, render::JpegDrawable},
+    video::{mjpeg::MjpegDecoder, render::JpegDrawable},
 };
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
@@ -13,8 +13,8 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::ShortFileName;
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
-pub mod decoder;
 mod esp_new_jpeg;
+pub mod mjpeg;
 mod render;
 
 mod tag {

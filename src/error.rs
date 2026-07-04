@@ -4,7 +4,7 @@ use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
 use riffparse::binrw;
 
-use crate::video::decoder::MjpegError;
+use crate::video::mjpeg::MjpegError;
 
 #[derive(Debug)]
 pub enum Error<IO, DI>

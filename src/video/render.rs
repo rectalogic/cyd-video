@@ -8,7 +8,7 @@ use embedded_graphics::{
     primitives::Rectangle,
 };
 
-use crate::video::decoder::MjpegDecoder;
+use crate::video::mjpeg::MjpegDecoder;
 
 pub struct JpegDrawable<'data, 'decoder> {
     size: Size,
