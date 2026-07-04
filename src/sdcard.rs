@@ -19,23 +19,21 @@ use esp_hal::{
     time::Rate,
 };
 
+#[cfg(esp32)]
 pub struct Peripherals {
     pub spi3: SPI3<'static>,
-    #[cfg(esp32)]
     pub cs: GPIO5<'static>,
-    #[cfg(esp32s3)]
-    pub cs: GPIO47<'static>,
-    #[cfg(esp32)]
     pub sclk: GPIO18<'static>,
-    #[cfg(esp32s3)]
-    pub sclk: GPIO38<'static>,
-    #[cfg(esp32)]
     pub miso: GPIO19<'static>,
-    #[cfg(esp32s3)]
-    pub miso: GPIO39<'static>,
-    #[cfg(esp32)]
     pub mosi: GPIO23<'static>,
-    #[cfg(esp32s3)]
+}
+
+#[cfg(esp32s3)]
+pub struct Peripherals {
+    pub spi3: SPI3<'static>,
+    pub cs: GPIO47<'static>,
+    pub sclk: GPIO38<'static>,
+    pub miso: GPIO39<'static>,
     pub mosi: GPIO40<'static>,
 }
 

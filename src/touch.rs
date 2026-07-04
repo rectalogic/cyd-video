@@ -17,10 +17,13 @@ use esp_hal::{
 static TOUCH: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
 static TOUCHED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(esp32)]
 pub struct Peripherals {
-    #[cfg(esp32)]
     pub irq: GPIO36<'static>,
-    #[cfg(esp32s3)]
+}
+
+#[cfg(esp32s3)]
+pub struct Peripherals {
     pub irq: GPIO17<'static>,
 }
 

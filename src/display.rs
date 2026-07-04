@@ -57,31 +57,27 @@ pub const CENTER: Point = Point::new(
     (ILI9341Rgb565::FRAMEBUFFER_SIZE.0 / 2) as i32,
 );
 
+#[cfg(esp32)]
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
-    #[cfg(esp32)]
     pub dc: GPIO2<'static>,
-    #[cfg(esp32s3)]
-    pub dc: GPIO46<'static>,
-    #[cfg(esp32)]
     pub rst: GPIO4<'static>,
-    // No RST for esp32s3
-    // miso GPIO12(esp32)/GPIO11(esp32s3) not needed
-    #[cfg(esp32)]
+    // miso GPIO12(esp32) not needed
     pub mosi: GPIO13<'static>,
-    #[cfg(esp32s3)]
-    pub mosi: GPIO11<'static>,
-    #[cfg(esp32)]
     pub sclk: GPIO14<'static>,
-    #[cfg(esp32s3)]
-    pub sclk: GPIO12<'static>,
-    #[cfg(esp32)]
     pub cs: GPIO15<'static>,
-    #[cfg(esp32s3)]
-    pub cs: GPIO10<'static>,
-    #[cfg(esp32)]
     pub bl: GPIO21<'static>,
-    #[cfg(esp32s3)]
+}
+
+#[cfg(esp32s3)]
+pub struct Peripherals {
+    pub spi2: SPI2<'static>,
+    pub dc: GPIO46<'static>,
+    // No RST for esp32s3
+    // miso GPIO11(esp32s3) not needed
+    pub mosi: GPIO11<'static>,
+    pub sclk: GPIO12<'static>,
+    pub cs: GPIO10<'static>,
     pub bl: GPIO45<'static>,
 }
 

@@ -16,9 +16,6 @@ jobs:
   rust-checks:
     name: Rust Checks
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        esp_chip: ["esp32", "esp32s3"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -28,11 +25,11 @@ jobs:
         uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
-          buildtargets: ${{ matrix.esp_chip }}
+          buildtargets: "esp32,esp32s3"
           ldproxy: false
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
       - name: Run checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy --features ${{ matrix.esp_chip }} -- -D warnings
+          cargo clippy --all-targets -- -D warnings
