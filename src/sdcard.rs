@@ -41,6 +41,7 @@ type SdCardType =
     embedded_sdmmc::SdCard<ExclusiveDevice<Spi<'static, Blocking>, Output<'static>, Delay>, Delay>;
 type VolumeManagerType = VolumeManager<SdCardType, DummyTimesource, 4, 4, 1>;
 pub type DirectoryType<'a> = embedded_sdmmc::Directory<'a, SdCardType, DummyTimesource, 4, 4, 1>;
+
 pub struct SdCard {
     volume_manager: VolumeManagerType,
 }
@@ -69,7 +70,8 @@ impl SdCard {
             spi.bus_mut().apply_config(
                 &SpiConfig::default()
                     .with_frequency(Rate::from_mhz(40))
-                    .with_mode(SpiMode::_0),)
+                    .with_mode(SpiMode::_0),
+            )
         })?;
 
         let volume_manager = VolumeManager::new(sdcard, DummyTimesource);
