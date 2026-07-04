@@ -31,14 +31,14 @@ use esp_hal::{
     },
     time::Rate,
 };
-#[cfg(esp32s3)]
-use mipidsi::NoResetPin;
 use mipidsi::{
     Builder,
     interface::SpiInterface,
     models::{ILI9341Rgb565, Model},
     options::{ColorOrder, Orientation, Rotation},
 };
+#[cfg(esp32s3)]
+use mipidsi::{NoResetPin, options::ColorInversion};
 
 type DisplayTypeRst<'a, RST> = mipidsi::Display<
     SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, NoCs, NoDelay>, Output<'a>>,
@@ -111,7 +111,8 @@ impl<'a> Display<'a> {
             Builder::new(ILI9341Rgb565, interface).reset_pin(rst)
         };
         #[cfg(esp32s3)]
-        let mut display_builder = Builder::new(ILI9341Rgb565, interface);
+        let mut display_builder =
+            Builder::new(ILI9341Rgb565, interface).invert_colors(ColorInversion::Inverted);
 
         display_builder = display_builder
             .display_size(
