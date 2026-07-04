@@ -32,4 +32,5 @@ jobs:
       - name: Run checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy --all-targets -- -D warnings
+          cargo clippy --target xtensa-esp32-none-elf -- -D warnings
+          cargo clippy --target xtensa-esp32s3-none-elf -- -D warnings
