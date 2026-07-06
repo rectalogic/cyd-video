@@ -3,12 +3,8 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use critical_section::Mutex;
-#[cfg(esp32s3)]
-use esp_hal::peripherals::GPIO17;
-#[cfg(esp32)]
-use esp_hal::peripherals::GPIO36;
 use esp_hal::{
-    gpio::{Event, Input, InputConfig, Io, Pull},
+    gpio::{AnyPin, Event, Input, InputConfig, Io, Pull},
     handler,
     peripherals::IO_MUX,
     ram,
@@ -17,14 +13,8 @@ use esp_hal::{
 static TOUCH: Mutex<RefCell<Option<Input>>> = Mutex::new(RefCell::new(None));
 static TOUCHED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(esp32)]
 pub struct Peripherals {
-    pub irq: GPIO36<'static>,
-}
-
-#[cfg(esp32s3)]
-pub struct Peripherals {
-    pub irq: GPIO17<'static>,
+    pub irq: AnyPin<'static>,
 }
 
 /// Detect XPT2046 touches

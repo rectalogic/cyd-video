@@ -49,38 +49,39 @@ async fn main(_spawner: Spawner) -> ! {
     #[cfg(esp32)]
     let display_peripherals = cyd_player::display::Peripherals {
         spi2: peripherals.SPI2,
-        dc: peripherals.GPIO2,
-        rst: peripherals.GPIO4,
-        mosi: peripherals.GPIO13,
-        sclk: peripherals.GPIO14,
-        cs: peripherals.GPIO15,
-        bl: peripherals.GPIO21,
+        dc: peripherals.GPIO2.into(),
+        rst: Some(peripherals.GPIO4.into()),
+        mosi: peripherals.GPIO13.into(),
+        sclk: peripherals.GPIO14.into(),
+        cs: peripherals.GPIO15.into(),
+        bl: peripherals.GPIO21.into(),
     };
     #[cfg(esp32s3)]
     let display_peripherals = cyd_player::display::Peripherals {
         spi2: peripherals.SPI2,
-        dc: peripherals.GPIO46,
-        mosi: peripherals.GPIO11,
-        sclk: peripherals.GPIO12,
-        cs: peripherals.GPIO10,
-        bl: peripherals.GPIO45,
+        dc: peripherals.GPIO46.into(),
+        rst: None,
+        mosi: peripherals.GPIO11.into(),
+        sclk: peripherals.GPIO12.into(),
+        cs: peripherals.GPIO10.into(),
+        bl: peripherals.GPIO45.into(),
     };
     let mut display = cyd_player::display::Display::new(&mut display_buffer, display_peripherals);
     #[cfg(esp32)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
-        cs: peripherals.GPIO5,
-        sclk: peripherals.GPIO18,
-        miso: peripherals.GPIO19,
-        mosi: peripherals.GPIO23,
+        cs: peripherals.GPIO5.into(),
+        sclk: peripherals.GPIO18.into(),
+        miso: peripherals.GPIO19.into(),
+        mosi: peripherals.GPIO23.into(),
     };
     #[cfg(esp32s3)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
-        spi3: peripherals.SPI3,
-        cs: peripherals.GPIO47,
-        sclk: peripherals.GPIO38,
-        miso: peripherals.GPIO39,
-        mosi: peripherals.GPIO40,
+        spi3: peripherals.SPI3.into(),
+        cs: peripherals.GPIO47.into(),
+        sclk: peripherals.GPIO38.into(),
+        miso: peripherals.GPIO39.into(),
+        mosi: peripherals.GPIO40.into(),
     };
     let mut sdcard = match cyd_player::sdcard::SdCard::new(sdcard_peripherals) {
         Ok(sdcard) => sdcard,
@@ -89,11 +90,11 @@ async fn main(_spawner: Spawner) -> ! {
 
     #[cfg(esp32)]
     let touch_peripherals = cyd_player::touch::Peripherals {
-        irq: peripherals.GPIO36,
+        irq: peripherals.GPIO36.into(),
     };
     #[cfg(esp32s3)]
     let touch_peripherals = cyd_player::touch::Peripherals {
-        irq: peripherals.GPIO17,
+        irq: peripherals.GPIO17.into(),
     };
     let touch_detector = TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
 

@@ -5,13 +5,10 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{
     SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
 };
-#[cfg(esp32)]
-use esp_hal::peripherals::{GPIO5, GPIO18, GPIO19, GPIO23, SPI3};
-#[cfg(esp32s3)]
-use esp_hal::peripherals::{GPIO38, GPIO39, GPIO40, GPIO47, SPI3};
 use esp_hal::{
     Blocking,
-    gpio::{Level, Output, OutputConfig},
+    gpio::{AnyPin, Level, Output, OutputConfig},
+    peripherals::SPI3,
     spi::{
         Mode as SpiMode,
         master::{Config as SpiConfig, Spi},
@@ -19,22 +16,12 @@ use esp_hal::{
     time::Rate,
 };
 
-#[cfg(esp32)]
 pub struct Peripherals {
     pub spi3: SPI3<'static>,
-    pub cs: GPIO5<'static>,
-    pub sclk: GPIO18<'static>,
-    pub miso: GPIO19<'static>,
-    pub mosi: GPIO23<'static>,
-}
-
-#[cfg(esp32s3)]
-pub struct Peripherals {
-    pub spi3: SPI3<'static>,
-    pub cs: GPIO47<'static>,
-    pub sclk: GPIO38<'static>,
-    pub miso: GPIO39<'static>,
-    pub mosi: GPIO40<'static>,
+    pub cs: AnyPin<'static>,
+    pub sclk: AnyPin<'static>,
+    pub miso: AnyPin<'static>,
+    pub mosi: AnyPin<'static>,
 }
 
 type SdCardType =

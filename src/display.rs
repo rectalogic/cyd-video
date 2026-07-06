@@ -18,13 +18,10 @@ use embedded_hal::{
     digital::{ErrorType, OutputPin},
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
-#[cfg(esp32)]
-use esp_hal::peripherals::{GPIO2, GPIO4, GPIO13, GPIO14, GPIO15, GPIO21, SPI2};
-#[cfg(esp32s3)]
-use esp_hal::peripherals::{GPIO10, GPIO11, GPIO12, GPIO45, GPIO46, SPI2};
 use esp_hal::{
     Blocking,
-    gpio::{Level, Output, OutputConfig},
+    gpio::{AnyPin, Level, Output, OutputConfig},
+    peripherals::SPI2,
     spi::{
         Mode as SpiMode,
         master::{Config as SpiConfig, Spi},
@@ -57,28 +54,16 @@ pub const CENTER: Point = Point::new(
     (ILI9341Rgb565::FRAMEBUFFER_SIZE.0 / 2) as i32,
 );
 
-#[cfg(esp32)]
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
-    pub dc: GPIO2<'static>,
-    pub rst: GPIO4<'static>,
-    // miso GPIO12(esp32) not needed
-    pub mosi: GPIO13<'static>,
-    pub sclk: GPIO14<'static>,
-    pub cs: GPIO15<'static>,
-    pub bl: GPIO21<'static>,
-}
-
-#[cfg(esp32s3)]
-pub struct Peripherals {
-    pub spi2: SPI2<'static>,
-    pub dc: GPIO46<'static>,
+    pub dc: AnyPin<'static>,
     // No RST for esp32s3
-    // miso GPIO11(esp32s3) not needed
-    pub mosi: GPIO11<'static>,
-    pub sclk: GPIO12<'static>,
-    pub cs: GPIO10<'static>,
-    pub bl: GPIO45<'static>,
+    pub rst: Option<AnyPin<'static>>,
+    // miso GPIO12(esp32)/GPIO11(esp32s3) not needed
+    pub mosi: AnyPin<'static>,
+    pub sclk: AnyPin<'static>,
+    pub cs: AnyPin<'static>,
+    pub bl: AnyPin<'static>,
 }
 
 pub struct Display<'a> {
@@ -106,7 +91,11 @@ impl<'a> Display<'a> {
 
         #[cfg(esp32)]
         let mut display_builder = {
-            let mut rst = Output::new(peripherals.rst, Level::Low, OutputConfig::default());
+            let mut rst = Output::new(
+                peripherals.rst.unwrap(),
+                Level::Low,
+                OutputConfig::default(),
+            );
             rst.set_high();
             Builder::new(ILI9341Rgb565, interface).reset_pin(rst)
         };
