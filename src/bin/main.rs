@@ -76,7 +76,7 @@ async fn main(_spawner: Spawner) -> ! {
     };
     #[cfg(esp32s3)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
-        spi3: peripherals.SPI3.into(),
+        spi3: peripherals.SPI3,
         cs: peripherals.GPIO47.into(),
         sclk: peripherals.GPIO38.into(),
         miso: peripherals.GPIO39.into(),
