@@ -36,6 +36,7 @@ use mipidsi::{
 };
 #[cfg(esp32s3)]
 use mipidsi::{NoResetPin, options::ColorInversion};
+use static_cell::StaticCell;
 
 type DisplayTypeRst<RST> = mipidsi::Display<
     SpiInterface<'static, ExclusiveDevice<Spi<'static, Blocking>, NoCs, NoDelay>, Output<'static>>,
@@ -73,8 +74,8 @@ pub struct Display {
 }
 
 impl Display {
-    #[allow(clippy::large_stack_frames)]
-    pub fn new(display_buffer: &'static mut [u8], peripherals: Peripherals) -> Self {
+    #[expect(clippy::large_stack_frames)]
+    pub fn new(peripherals: Peripherals) -> Self {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -87,6 +88,9 @@ impl Display {
         .with_cs(peripherals.cs);
 
         let dc = Output::new(peripherals.dc, Level::Low, OutputConfig::default());
+
+        static STATIC_CELL: StaticCell<[u8; 512]> = StaticCell::new();
+        let display_buffer = STATIC_CELL.init([0_u8; 512]);
 
         let spi_dev = ExclusiveDevice::new_no_delay(spi, NoCs).expect("infallible");
         let interface = SpiInterface::new(spi_dev, dc, display_buffer);

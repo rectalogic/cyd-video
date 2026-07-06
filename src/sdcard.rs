@@ -1,9 +1,9 @@
 use crate::error::Error;
-use core::{convert::Infallible, ops::AsyncFnOnce};
+use core::ops::AsyncFnOnce;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use embedded_sdmmc::{
-    SdCardError, TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
+    TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
 };
 use esp_hal::{
     Blocking,
@@ -34,7 +34,7 @@ pub struct SdCard {
 }
 
 impl SdCard {
-    pub fn new(peripherals: Peripherals) -> Result<Self, Error<Infallible>> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, Error> {
         let cs = Output::new(peripherals.cs, Level::High, OutputConfig::default());
         let spi = Spi::new(
             peripherals.spi3,
@@ -66,16 +66,10 @@ impl SdCard {
         Ok(Self { volume_manager })
     }
 
-    pub async fn open_directory<DN, F, R>(
-        &mut self,
-        dirname: DN,
-        f: F,
-    ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>
+    pub async fn open_directory<DN, F, R>(&mut self, dirname: DN, f: F) -> Result<R, Error>
     where
         DN: ToShortFileName,
-        for<'a> F: AsyncFnOnce(
-            &'a DirectoryType<'a>,
-        ) -> Result<R, Error<embedded_sdmmc::Error<SdCardError>>>,
+        for<'a> F: AsyncFnOnce(&'a DirectoryType<'a>) -> Result<R, Error>,
     {
         let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let root_directory = volume.open_root_dir()?;

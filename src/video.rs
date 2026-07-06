@@ -1,7 +1,4 @@
-use core::{
-    convert::Infallible,
-    ops::{ControlFlow, DerefMut},
-};
+use core::ops::{ControlFlow, DerefMut};
 
 use crate::{
     display::{CENTER, Display},
@@ -30,7 +27,7 @@ pub async fn play_directory(
     sdcard: &mut SdCard,
     display: &mut Display,
     touch_detector: &TouchDetector,
-) -> Result<(), Error<embedded_sdmmc::Error<embedded_sdmmc::SdCardError>>> {
+) -> Result<(), Error> {
     log::info!("Loading dir {avi_dir}");
     sdcard
         .open_directory(avi_dir, async |directory| {
@@ -73,7 +70,7 @@ async fn play<R>(
     reader: R,
     display: &mut Display,
     touch_detector: &TouchDetector,
-) -> Result<(), Error<Infallible>>
+) -> Result<(), Error>
 where
     R: Read + Seek,
 {
