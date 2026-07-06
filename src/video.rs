@@ -1,6 +1,5 @@
 use core::{
     convert::Infallible,
-    fmt,
     ops::{ControlFlow, DerefMut},
 };
 
@@ -29,9 +28,9 @@ mod tag {
 pub async fn play_directory(
     avi_dir: &str,
     sdcard: &mut SdCard,
-    display: &mut Display<'_>,
+    display: &mut Display,
     touch_detector: &TouchDetector,
-) -> Result<(), Error<embedded_sdmmc::Error<embedded_sdmmc::SdCardError>, Infallible>> {
+) -> Result<(), Error<embedded_sdmmc::Error<embedded_sdmmc::SdCardError>>> {
     log::info!("Loading dir {avi_dir}");
     sdcard
         .open_directory(avi_dir, async |directory| {
@@ -57,7 +56,7 @@ pub async fn play_directory(
             for filename in filenames_cycle {
                 log::info!("Playing {filename}");
                 match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
-                    Ok(file) => match play(file, display.deref_mut(), touch_detector).await {
+                    Ok(file) => match play(file, display, touch_detector).await {
                         Ok(_) => {}
                         Err(e) => display.message(format_args!("{e:?}")),
                     },
@@ -70,15 +69,13 @@ pub async fn play_directory(
         .await
 }
 
-async fn play<R, DT>(
+async fn play<R>(
     reader: R,
-    display: &mut DT,
+    display: &mut Display,
     touch_detector: &TouchDetector,
-) -> Result<(), Error<Infallible, DT::Error>>
+) -> Result<(), Error<Infallible>>
 where
     R: Read + Seek,
-    DT: DrawTarget<Color = Rgb565>,
-    DT::Error: fmt::Debug,
 {
     let avi_parser = avi::AviParser::new(RiffParser::new(EmbeddedAdapter(reader)))?;
     let Some(video_stream) = avi_parser.find_best_stream::<avi::VideoStream>() else {
@@ -125,7 +122,9 @@ where
             }
         }
         start = Some(Instant::now());
-        image.draw(display).map_err(Error::DisplayError)?;
+        image
+            .draw(display.deref_mut())
+            .map_err(Error::DisplayError)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
             display.clear(Rgb565::BLUE).expect("clear");

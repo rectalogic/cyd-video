@@ -12,6 +12,7 @@ use embassy_executor::Spawner;
 
 use esp_backtrace as _;
 use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
+use static_cell::StaticCell;
 
 extern crate alloc;
 
@@ -45,7 +46,6 @@ async fn main(_spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
-    let mut display_buffer = [0u8; 512];
     #[cfg(esp32)]
     let display_peripherals = cyd_player::display::Peripherals {
         spi2: peripherals.SPI2,
@@ -66,7 +66,9 @@ async fn main(_spawner: Spawner) -> ! {
         cs: peripherals.GPIO10.into(),
         bl: peripherals.GPIO45.into(),
     };
-    let mut display = cyd_player::display::Display::new(&mut display_buffer, display_peripherals);
+    static STATIC_CELL: StaticCell<[u8; 512]> = StaticCell::new();
+    let display_buffer = STATIC_CELL.init([0_u8; 512]);
+    let mut display = cyd_player::display::Display::new(display_buffer, display_peripherals);
     #[cfg(esp32)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,

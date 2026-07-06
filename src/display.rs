@@ -37,15 +37,17 @@ use mipidsi::{
 #[cfg(esp32s3)]
 use mipidsi::{NoResetPin, options::ColorInversion};
 
-type DisplayTypeRst<'a, RST> = mipidsi::Display<
-    SpiInterface<'a, ExclusiveDevice<Spi<'a, Blocking>, NoCs, NoDelay>, Output<'a>>,
+type DisplayTypeRst<RST> = mipidsi::Display<
+    SpiInterface<'static, ExclusiveDevice<Spi<'static, Blocking>, NoCs, NoDelay>, Output<'static>>,
     ILI9341Rgb565,
     RST,
 >;
 #[cfg(esp32)]
-type DisplayType<'a> = DisplayTypeRst<'a, Output<'a>>;
+type DisplayType = DisplayTypeRst<Output<'static>>;
 #[cfg(esp32s3)]
-type DisplayType<'a> = DisplayTypeRst<'a, NoResetPin>;
+type DisplayType = DisplayTypeRst<NoResetPin>;
+
+pub type DisplayError = <DisplayType as DrawTarget>::Error;
 
 pub const DISPLAY_WIDTH: u32 = ILI9341Rgb565::FRAMEBUFFER_SIZE.0 as u32;
 pub const DISPLAY_HEIGHT: u32 = ILI9341Rgb565::FRAMEBUFFER_SIZE.1 as u32;
@@ -66,13 +68,13 @@ pub struct Peripherals {
     pub bl: AnyPin<'static>,
 }
 
-pub struct Display<'a> {
-    display: DisplayType<'a>,
+pub struct Display {
+    display: DisplayType,
 }
 
-impl<'a> Display<'a> {
+impl Display {
     #[allow(clippy::large_stack_frames)]
-    pub fn new(display_buffer: &'a mut [u8], peripherals: Peripherals) -> Self {
+    pub fn new(display_buffer: &'static mut [u8], peripherals: Peripherals) -> Self {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -142,15 +144,15 @@ impl<'a> Display<'a> {
     }
 }
 
-impl<'a> Deref for Display<'a> {
-    type Target = DisplayType<'a>;
+impl Deref for Display {
+    type Target = DisplayType;
 
     fn deref(&self) -> &Self::Target {
         &self.display
     }
 }
 
-impl<'a> DerefMut for Display<'a> {
+impl DerefMut for Display {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.display
     }
