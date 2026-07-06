@@ -10,7 +10,7 @@ use crate::{
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
-use embedded_sdmmc::ShortFileName;
+use embedded_sdmmc::{ShortFileName, VolumeIdx};
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
 mod esp_new_jpeg;
@@ -29,41 +29,37 @@ pub async fn play_directory(
     touch_detector: &TouchDetector,
 ) -> Result<(), Error> {
     log::info!("Loading dir {avi_dir}");
-    sdcard
-        .open_directory(avi_dir, async |directory| {
-            const MAX_FILES: usize = 5;
-            let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
-            let mut index: usize = 0;
-            if let Err(e) = directory.iterate_dir(|entry| {
-                if index < MAX_FILES
-                    && !entry.attributes.is_directory()
-                    && entry.name.extension() == b"AVI"
-                {
-                    log::info!("Found {}", entry.name);
-                    filenames[index] = Some(entry.name);
-                    index += 1;
-                };
-                ControlFlow::Continue(())
-            }) {
-                display.message(format_args!("directory {avi_dir} error: {e:?}"))
-            };
-            filenames.sort();
+    let volume = sdcard.open_volume(VolumeIdx(0))?;
+    let root_directory = volume.open_root_dir()?;
+    let directory = root_directory.open_dir(avi_dir)?;
 
-            let filenames_cycle = filenames.into_iter().flatten().cycle();
-            for filename in filenames_cycle {
-                log::info!("Playing {filename}");
-                match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
-                    Ok(file) => match play(file, display, touch_detector).await {
-                        Ok(_) => {}
-                        Err(e) => display.message(format_args!("{e:?}")),
-                    },
-                    Err(e) => display.message(format_args!("{filename} error: {e:?}")),
-                };
-            }
+    const MAX_FILES: usize = 5;
+    let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
+    let mut index: usize = 0;
+    directory.iterate_dir(|entry| {
+        if index < MAX_FILES && !entry.attributes.is_directory() && entry.name.extension() == b"AVI"
+        {
+            log::info!("Found {}", entry.name);
+            filenames[index] = Some(entry.name);
+            index += 1;
+        };
+        ControlFlow::Continue(())
+    })?;
+    filenames.sort();
 
-            Ok(())
-        })
-        .await
+    let filenames_cycle = filenames.into_iter().flatten().cycle();
+    for filename in filenames_cycle {
+        log::info!("Playing {filename}");
+        match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
+            Ok(file) => match play(file, display, touch_detector).await {
+                Ok(_) => {}
+                Err(e) => display.message(format_args!("{e:?}")),
+            },
+            Err(e) => display.message(format_args!("{filename} error: {e:?}")),
+        };
+    }
+
+    Ok(())
 }
 
 async fn play<R>(

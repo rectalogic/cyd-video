@@ -1,10 +1,8 @@
 use crate::error::Error;
-use core::ops::AsyncFnOnce;
+use core::ops::{Deref, DerefMut};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use embedded_sdmmc::{
-    TimeSource, Timestamp, VolumeIdx, VolumeManager, filesystem::ToShortFileName,
-};
+use embedded_sdmmc::{TimeSource, Timestamp, VolumeManager};
 use esp_hal::{
     Blocking,
     gpio::{AnyPin, Level, Output, OutputConfig},
@@ -65,24 +63,19 @@ impl SdCard {
 
         Ok(Self { volume_manager })
     }
+}
 
-    pub async fn open_directory<DN, F, R>(&mut self, dirname: DN, f: F) -> Result<R, Error>
-    where
-        DN: ToShortFileName,
-        for<'a> F: AsyncFnOnce(&'a DirectoryType<'a>) -> Result<R, Error>,
-    {
-        let volume = self.volume_manager.open_volume(VolumeIdx(0))?;
-        let root_directory = volume.open_root_dir()?;
-        let directory = root_directory.open_dir(dirname)?;
+impl Deref for SdCard {
+    type Target = VolumeManagerType;
 
-        let result = f(&directory).await?;
+    fn deref(&self) -> &Self::Target {
+        &self.volume_manager
+    }
+}
 
-        // Close in reverse order
-        directory.close()?;
-        root_directory.close()?;
-        volume.close()?;
-
-        Ok(result)
+impl DerefMut for SdCard {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.volume_manager
     }
 }
 
