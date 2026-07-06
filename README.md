@@ -21,8 +21,14 @@ The SD card must have an `AVI` directory containing 8.3 filename AVI videos enco
 
 ```sh-session
 $ cd cyd-player
-$ cargo run run-esp32
-$ cargo run run-esp32s3
+$ cargo run-esp32
+$ cargo run-esp32s3
+```
+or
+```sh-session
+$ cd cyd-player
+$ cargo build-esp32
+$ cargo build-esp32s3
 ```
 
 Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
@@ -34,3 +40,4 @@ $ scripts/encode.sh <input.mp4> output.avi
 ## Performance
 
 On esp32 playback can nearly achieve 15fps.
+esp32s3 if much faster.
