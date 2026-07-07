@@ -92,7 +92,7 @@ async fn main(_spawner: Spawner) {
         .i2s_tx
         .with_bclk(peripherals.GPIO5)
         .with_ws(peripherals.GPIO7)
-        .with_dout(peripherals.GPIO6)
+        .with_dout(peripherals.GPIO8)
         .build(tx_descriptors);
 
         // Init ES8311 via I2C
