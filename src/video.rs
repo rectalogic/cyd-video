@@ -1,3 +1,5 @@
+extern crate alloc;
+use alloc::vec::Vec;
 use core::ops::{ControlFlow, DerefMut};
 
 use crate::{
@@ -87,7 +89,7 @@ where
     let frame_duration = Duration::from_micros(avi_parser.avi_header.micro_sec_per_frame as u64);
     // 15K buffer to read compressed JPG 320x240 image
     const BUFFER_SIZE: usize = 15 * 1024;
-    let mut buffer = [0u8; BUFFER_SIZE];
+    let mut buffer = Vec::with_capacity(BUFFER_SIZE);
 
     display.clear(Rgb565::BLACK).expect("clear");
     let decoder = MjpegDecoder::new()?;
@@ -95,16 +97,26 @@ where
     let mut start: Option<Instant> = None;
     for (count, chunk) in avi_parser.movi_chunks(stream_id).enumerate() {
         let chunk = chunk?;
-        let jpeg_data = &mut buffer[..(chunk.data_size() as usize)];
-        avi_parser.riff_parser().read_data(chunk, jpeg_data)?;
+
+        let data_size = chunk.data_size() as usize;
+        #[expect(clippy::uninit_vec)]
+        {
+            buffer.reserve(data_size.saturating_sub(buffer.capacity()));
+            // SAFETY: read_data fills the buffer
+            unsafe {
+                buffer.set_len(data_size);
+            }
+        }
+
+        avi_parser.riff_parser().read_data(chunk, &mut buffer)?;
         let jpeg_size = match size {
             Some(size) => size,
             None => {
-                let (w, h) = decoder.prepare(jpeg_data)?;
+                let (w, h) = decoder.prepare(&buffer)?;
                 *size.insert(Size::new(w as u32, h as u32))
             }
         };
-        let drawable = JpegDrawable::new(&decoder, jpeg_size, jpeg_data);
+        let drawable = JpegDrawable::new(&decoder, jpeg_size, &buffer);
         let image = Image::with_center(&drawable, CENTER);
         if let Some(start) = start {
             let elapsed = start.elapsed();
