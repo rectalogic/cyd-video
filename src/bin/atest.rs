@@ -83,7 +83,7 @@ async fn main(_spawner: Spawner) {
             dma_channel,
             Config::new_tdm_philips()
                 .with_sample_rate(Rate::from_hz(44100))
-                .with_data_format(DataFormat::Data32Channel16)
+                .with_data_format(DataFormat::Data16Channel16)
                 .with_channels(Channels::STEREO),
         )
         .unwrap()
@@ -132,31 +132,48 @@ async fn main(_spawner: Spawner) {
         i2s_tx
     };
 
-    let data =
-        unsafe { core::slice::from_raw_parts(&SINE as *const _ as *const u8, SINE.len() * 2) };
-
+    // Fill buffer with stereo-interleaved i16 samples (same value on both channels)
     let buffer = tx_buffer;
-    let mut idx = 0;
-    for i in 0..usize::min(data.len(), buffer.len()) {
-        buffer[i] = data[idx];
-        idx += 1;
-        if idx >= data.len() {
-            idx = 0;
+    let num_frames = buffer.len() / 4; // 4 bytes per stereo frame (2×i16)
+    let mut sine_idx: usize = 0;
+    for frame in 0..num_frames {
+        let sample = SINE[sine_idx];
+        let bytes = sample.to_le_bytes();
+        let off = frame * 4;
+        buffer[off + 0] = bytes[0];
+        buffer[off + 1] = bytes[1];
+        buffer[off + 2] = bytes[0];
+        buffer[off + 3] = bytes[1];
+        sine_idx += 1;
+        if sine_idx >= SINE.len() {
+            sine_idx = 0;
         }
     }
 
     let mut filler = [0u8; 10000];
-    let mut idx = 32000 % data.len();
+    let filler_frames = filler.len() / 4;
+    let mut sample_idx = num_frames % SINE.len();
 
     println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
     loop {
-        for i in 0..filler.len() {
-            filler[i] = data[(idx + i) % data.len()];
+        let mut si = sample_idx;
+        for f in 0..filler_frames {
+            let sample = SINE[si];
+            let bytes = sample.to_le_bytes();
+            let off = f * 4;
+            filler[off + 0] = bytes[0];
+            filler[off + 1] = bytes[1];
+            filler[off + 2] = bytes[0];
+            filler[off + 3] = bytes[1];
+            si += 1;
+            if si >= SINE.len() {
+                si = 0;
+            }
         }
         println!("Next");
         let written = transaction.push(&filler).await.unwrap();
-        idx = (idx + written) % data.len();
+        sample_idx = (sample_idx + written / 4) % SINE.len();
         println!("written {}", written);
     }
 }
