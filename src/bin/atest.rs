@@ -128,16 +128,17 @@ async fn play(
     };
     let buffer_len = buffer.len();
 
-    // Pre-load only a fraction of the buffer so that the first push() call
-    // has room to write immediately without waiting for the DMA to advance.
-    // Pre-loading the full buffer (as done previously) left zero free space,
-    // causing push() to yield and the DMA to wrap around and re-read stale
-    // data before fresh data arrived — skipping the first ~250ms of audio.
-    let preload = (buffer_len / 4).min(first_frame_pcm.len());
-    buffer[..preload].copy_from_slice(&first_frame_pcm[..preload]);
-
+    // Don't pre-load the buffer. TxCircularState::update() in esp-hal uses
+    // `ptr < descr_address` (strict less-than) to compute available bytes,
+    // so the first completed descriptor is never credited. With any pre-load,
+    // push() always lags behind the DMA by one descriptor, causing the DMA
+    // to wrap onto stale/unfilled descriptors before push catches up.
+    // Starting empty means push() feeds the first descriptor via the normal
+    // available → write channel, producing a predictable ~42-84ms of initial
+    // silence (1-2 descriptor completion times) instead of the unpredictable
+    // ~250ms skip caused by the tracking lag.
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
-    let mut pending = &first_frame_pcm[preload..];
+    let mut pending: &[u8] = first_frame_pcm;
 
     loop {
         if !pending.is_empty() {
