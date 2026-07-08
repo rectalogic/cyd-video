@@ -9,7 +9,7 @@ use esp_backtrace as _;
 use esp_hal::{
     Async,
     clock::CpuClock,
-    dma_buffers,
+    dma_circular_buffers,
     i2s::master::{Channels, Config, DataFormat, I2s, I2sTx},
     time::Rate,
     timer::timg::TimerGroup,
@@ -45,7 +45,9 @@ async fn main(_spawner: Spawner) {
 
     let dma_channel = peripherals.DMA_CH0;
 
-    let (_, _, tx_buffer, tx_descriptors) = dma_buffers!(0, 32000);
+    // 4096 bytes = 128 ms at 16 kHz 16-bit mono — enough DMA headroom
+    // without noticeable drain delay at end-of-stream.
+    let (_, _, tx_buffer, tx_descriptors) = dma_circular_buffers!(0, 4096);
 
     let i2s_tx = {
         // Amp off initially (IO1 HIGH = disabled)
