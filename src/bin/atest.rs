@@ -31,28 +31,6 @@ static PCM: &[u8] = include_bytes!("audio.pcm");
 const SAMPLE_RATE: u32 = 16_000;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 
-/// Copy mono s16le samples from `pcm` into `buf`, wrapping at EOF.
-/// Returns the number of bytes written.
-fn fill_buf(buf: &mut [u8], pcm: &[u8], pos: &mut usize) {
-    let mut written = 0;
-    while written < buf.len() {
-        let chunk = buf.len() - written;
-        let remaining = pcm.len() - *pos;
-        if chunk <= remaining {
-            buf[written..written + chunk].copy_from_slice(&pcm[*pos..*pos + chunk]);
-            written += chunk;
-            *pos += chunk;
-            if *pos >= pcm.len() {
-                *pos = 0;
-            }
-        } else {
-            buf[written..written + remaining].copy_from_slice(&pcm[*pos..*pos + remaining]);
-            written += remaining;
-            *pos = 0;
-        }
-    }
-}
-
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
     println!("Init!");
@@ -133,22 +111,29 @@ async fn main(_spawner: Spawner) {
         PCM.len() as f32 / (SAMPLE_RATE * 2) as f32
     );
 
-    // Fill initial DMA buffer from PCM
     let buffer = tx_buffer;
-    let mut pcm_pos: usize = 0;
-    fill_buf(buffer, PCM, &mut pcm_pos);
+    let mut pcm_pos: usize;
 
-    let mut filler = [0u8; 10000];
+    // Pre-fill DMA buffer with the start of PCM so playback begins cleanly
+    {
+        let initial = buffer.len().min(PCM.len());
+        buffer[..initial].copy_from_slice(&PCM[..initial]);
+        pcm_pos = initial;
+    }
 
     println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
-    loop {
-        fill_buf(&mut filler, PCM, &mut pcm_pos);
-        let written = transaction.push(&filler).await.unwrap();
-        // If the circular buffer couldn't accept all data, rewind pcm_pos
-        if written < filler.len() {
-            pcm_pos = (pcm_pos + PCM.len() - (filler.len() - written)) % PCM.len();
-        }
+
+    // Push remaining PCM data
+    while pcm_pos < PCM.len() {
+        let remaining = PCM.len() - pcm_pos;
+        let written = transaction
+            .push(&PCM[pcm_pos..pcm_pos + remaining])
+            .await
+            .unwrap();
+        pcm_pos += written;
         println!("pos {}/{}", pcm_pos, PCM.len());
     }
+
+    println!("Done");
 }
