@@ -31,20 +31,28 @@ static PCM: &[u8] = include_bytes!("audio.pcm");
 const SAMPLE_RATE: u32 = 16_000;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 
+/// Convert one pcm_u8 sample to signed i16 for the DAC.
+/// u8 values 0..128..255 map to i16 range −32768..0..32512.
 #[inline]
 fn pcm_u8_to_i16(raw: u8) -> i16 {
     (raw.wrapping_sub(128) as i16) << 8
 }
 
-/// Write one mono → stereo i16 frame (4 bytes) into `buf[off..]`.
-/// Both channels carry the same sample.
-#[inline]
-fn write_frame(buf: &mut [u8], off: usize, sample: i16) {
-    let b = sample.to_le_bytes();
-    buf[off] = b[0];
-    buf[off + 1] = b[1];
-    buf[off + 2] = b[0];
-    buf[off + 3] = b[1];
+/// Fill a byte buffer with mono i16 samples from PCM, starting at `pos`.
+/// Returns the number of samples written (each sample = 2 bytes).
+fn fill_samples(buf: &mut [u8], pcm: &[u8], pos: &mut usize) -> usize {
+    let n = buf.len() / 2;
+    for i in 0..n {
+        let sample = pcm_u8_to_i16(pcm[*pos]);
+        let b = sample.to_le_bytes();
+        buf[i * 2] = b[0];
+        buf[i * 2 + 1] = b[1];
+        *pos += 1;
+        if *pos >= pcm.len() {
+            *pos = 0;
+        }
+    }
+    n
 }
 
 #[esp_rtos::main]
@@ -67,14 +75,14 @@ async fn main(_spawner: Spawner) {
         let mut delay = Delay;
         delay.delay_ms(10);
 
-        // Build I2S TX
+        // Build I2S TX — mono: hardware duplicates each sample to both L/R channels
         let i2s_tx = I2s::new(
             peripherals.I2S0,
             dma_channel,
             Config::new_tdm_philips()
                 .with_sample_rate(Rate::from_hz(SAMPLE_RATE))
                 .with_data_format(DataFormat::Data16Channel16)
-                .with_channels(Channels::STEREO),
+                .with_channels(Channels::MONO),
         )
         .unwrap()
         .with_mclk(peripherals.GPIO4)
@@ -127,36 +135,22 @@ async fn main(_spawner: Spawner) {
         PCM.len() as f32 / SAMPLE_RATE as f32
     );
 
-    // Fill initial DMA buffer from PCM, wrapping around
+    // Fill initial DMA buffer from PCM
     let buffer = tx_buffer;
-    let num_frames = buffer.len() / 4; // 4 bytes per stereo frame
     let mut pcm_pos: usize = 0;
-    for frame in 0..num_frames {
-        write_frame(buffer, frame * 4, pcm_u8_to_i16(PCM[pcm_pos]));
-        pcm_pos += 1;
-        if pcm_pos >= PCM.len() {
-            pcm_pos = 0;
-        }
-    }
+    fill_samples(buffer, PCM, &mut pcm_pos);
 
     let mut filler = [0u8; 10000];
-    let filler_frames = filler.len() / 4;
 
     println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
     loop {
-        for f in 0..filler_frames {
-            write_frame(&mut filler, f * 4, pcm_u8_to_i16(PCM[pcm_pos]));
-            pcm_pos += 1;
-            if pcm_pos >= PCM.len() {
-                pcm_pos = 0;
-            }
-        }
+        fill_samples(&mut filler, PCM, &mut pcm_pos);
         let written = transaction.push(&filler).await.unwrap();
         // If the circular buffer couldn't accept all data, rewind pcm_pos
         if written < filler.len() {
-            let skipped_frames = (filler.len() - written) / 4;
-            pcm_pos = (pcm_pos + PCM.len() - skipped_frames) % PCM.len();
+            let skipped = (filler.len() - written) / 2;
+            pcm_pos = (pcm_pos + PCM.len() - skipped) % PCM.len();
         }
         println!("pos {}/{}", pcm_pos, PCM.len());
     }
