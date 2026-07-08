@@ -7,10 +7,9 @@ use embassy_executor::Spawner;
 use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
 use esp_hal::{
-    Async,
     clock::CpuClock,
     dma_circular_buffers,
-    i2s::master::{Channels, Config, DataFormat, I2s, I2sTx},
+    i2s::master::{Channels, Config, DataFormat, I2s, asynch::I2sWriteDmaTransferAsync},
     time::Rate,
     timer::timg::TimerGroup,
 };
@@ -32,6 +31,7 @@ static PCM: &[u8] = include_bytes!("audio.pcm");
 
 const SAMPLE_RATE: u32 = 16_000;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
+const DMA_SIZE: usize = 4096;
 
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
@@ -47,7 +47,7 @@ async fn main(_spawner: Spawner) {
 
     // 4096 bytes = 128 ms at 16 kHz 16-bit mono — enough DMA headroom
     // without noticeable drain delay at end-of-stream.
-    let (_, _, tx_buffer, tx_descriptors) = dma_circular_buffers!(0, 4096);
+    let (_, _, tx_buffer, tx_descriptors) = dma_circular_buffers!(0, DMA_SIZE);
 
     let i2s_tx = {
         // Amp off initially (IO1 HIGH = disabled)
@@ -115,19 +115,6 @@ async fn main(_spawner: Spawner) {
         PCM.len() as f32 / (SAMPLE_RATE * 2) as f32
     );
 
-    play(i2s_tx, tx_buffer, repeat_n(PCM, 4)).await;
-}
-
-async fn play(
-    i2s_tx: I2sTx<'_, Async>,
-    buffer: &mut [u8],
-    mut frames: impl Iterator<Item = &[u8]>,
-) {
-    let Some(first_frame_pcm) = frames.next() else {
-        return; // end of stream
-    };
-    let buffer_len = buffer.len();
-
     // Don't pre-load the buffer. TxCircularState::update() in esp-hal uses
     // `ptr < descr_address` (strict less-than) to compute available bytes,
     // so the first completed descriptor is never credited. With any pre-load,
@@ -137,7 +124,21 @@ async fn play(
     // available → write channel, producing a predictable ~42-84ms of initial
     // silence (1-2 descriptor completion times) instead of the unpredictable
     // ~250ms skip caused by the tracking lag.
-    let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
+    //
+    // The delay before playback should be DMA_SIZE / (SAMPLE_RATE × bytes_per_sample) millis
+    let mut transaction = i2s_tx.write_dma_circular_async(tx_buffer).unwrap();
+
+    play(&mut transaction, repeat_n(PCM, 4)).await;
+}
+
+async fn play(
+    transaction: &mut I2sWriteDmaTransferAsync<'_, &mut [u8; DMA_SIZE]>,
+    mut frames: impl Iterator<Item = &[u8]>,
+) {
+    let Some(first_frame_pcm) = frames.next() else {
+        return; // end of stream
+    };
+
     let mut pending: &[u8] = first_frame_pcm;
 
     loop {
@@ -161,7 +162,7 @@ async fn play(
     // Option A: push silence explicitly
     const SILENCE: [u8; 512] = [0u8; 512];
     let mut silence_pushed: usize = 0;
-    while silence_pushed < buffer_len {
+    while silence_pushed < DMA_SIZE {
         let written = transaction.push(&SILENCE).await.unwrap();
         silence_pushed += written;
     }
