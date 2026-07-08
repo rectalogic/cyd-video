@@ -1,8 +1,8 @@
 #![no_std]
 #![no_main]
+#![cfg(esp32s3)]
 
 use embassy_executor::Spawner;
-#[cfg(esp32s3)]
 use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
 use esp_hal::{
@@ -13,7 +13,6 @@ use esp_hal::{
     timer::timg::TimerGroup,
 };
 use esp_println::println;
-#[cfg(esp32s3)]
 use {
     embassy_time::Delay,
     es8311::{ClockConfig, Es8311, Resolution},
@@ -58,34 +57,10 @@ async fn main(_spawner: Spawner) {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
 
-    #[cfg(esp32)]
-    let dma_channel = peripherals.DMA_I2S0;
-    #[cfg(esp32s3)]
     let dma_channel = peripherals.DMA_CH0;
 
     let (_, _, tx_buffer, tx_descriptors) = dma_buffers!(0, 32000);
 
-    #[cfg(esp32)]
-    let i2s_tx = {
-        let i2s = I2s::new(
-            peripherals.I2S0,
-            dma_channel,
-            Config::new_tdm_philips()
-                .with_sample_rate(Rate::from_hz(44100))
-                .with_data_format(DataFormat::Data16Channel16)
-                .with_channels(Channels::STEREO),
-        )
-        .unwrap()
-        .into_async();
-
-        i2s.i2s_tx
-            .with_bclk(peripherals.GPIO22)
-            .with_ws(peripherals.GPIO27)
-            .with_dout(peripherals.GPIO33)
-            .build(tx_descriptors)
-    };
-
-    #[cfg(esp32s3)]
     let i2s_tx = {
         // Amp off initially (IO1 HIGH = disabled)
         let mut audio_enable = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
