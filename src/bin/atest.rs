@@ -6,9 +6,10 @@ use embassy_executor::Spawner;
 use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
 use esp_hal::{
+    Async,
     clock::CpuClock,
     dma_buffers,
-    i2s::master::{Channels, Config, DataFormat, I2s},
+    i2s::master::{Channels, Config, DataFormat, I2s, I2sTx},
     time::Rate,
     timer::timg::TimerGroup,
 };
@@ -111,12 +112,16 @@ async fn main(_spawner: Spawner) {
         PCM.len() as f32 / (SAMPLE_RATE * 2) as f32
     );
 
-    let buffer = tx_buffer;
+    play(i2s_tx, tx_buffer).await;
+}
+
+async fn play(i2s_tx: I2sTx<'_, Async>, buffer: &mut [u8]) {
     let mut pcm_pos: usize;
 
+    let buffer_len = buffer.len();
     // Pre-fill DMA buffer with the start of PCM so playback begins cleanly
     {
-        let initial = buffer.len().min(PCM.len());
+        let initial = buffer_len.min(PCM.len());
         buffer[..initial].copy_from_slice(&PCM[..initial]);
         pcm_pos = initial;
     }
@@ -134,6 +139,21 @@ async fn main(_spawner: Spawner) {
         pcm_pos += written;
         println!("pos {}/{}", pcm_pos, PCM.len());
     }
+
+    // Drain: push silence until the entire buffer has been overwritten.
+    // push() returns after writing to the DMA buffer, not after playback —
+    // so data we just pushed is still queued ahead of the DMA read pointer.
+    // By pushing buffer.len() bytes of silence, we guarantee all real audio
+    // has been consumed before we stop the DMA.
+    const SILENCE: [u8; 512] = [0u8; 512];
+    let mut silence_pushed: usize = 0;
+    while silence_pushed < buffer_len {
+        let written = transaction.push(&SILENCE).await.unwrap();
+        silence_pushed += written;
+    }
+
+    // Now only silence remains in the buffer — safe to stop.
+    drop(transaction);
 
     println!("Done");
 }
