@@ -24,35 +24,33 @@ use {
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-/// PCM audio encoded as: `ffmpeg … -acodec pcm_u8 -ar 16000 -ac 1`
-/// 8-bit unsigned, 16 kHz, mono. Silence = 128.
+/// PCM audio encoded as: `ffmpeg … -acodec pcm_s16le -ar 16000 -ac 1`
+/// Signed 16-bit little-endian, 16 kHz, mono.
 static PCM: &[u8] = include_bytes!("audio.pcm");
 
 const SAMPLE_RATE: u32 = 16_000;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 
-/// Convert one pcm_u8 sample to signed i16 for the DAC.
-/// u8 values 0..128..255 map to i16 range −32768..0..32512.
-#[inline]
-fn pcm_u8_to_i16(raw: u8) -> i16 {
-    (raw.wrapping_sub(128) as i16) << 8
-}
-
-/// Fill a byte buffer with mono i16 samples from PCM, starting at `pos`.
-/// Returns the number of samples written (each sample = 2 bytes).
-fn fill_samples(buf: &mut [u8], pcm: &[u8], pos: &mut usize) -> usize {
-    let n = buf.len() / 2;
-    for i in 0..n {
-        let sample = pcm_u8_to_i16(pcm[*pos]);
-        let b = sample.to_le_bytes();
-        buf[i * 2] = b[0];
-        buf[i * 2 + 1] = b[1];
-        *pos += 1;
-        if *pos >= pcm.len() {
+/// Copy mono s16le samples from `pcm` into `buf`, wrapping at EOF.
+/// Returns the number of bytes written.
+fn fill_buf(buf: &mut [u8], pcm: &[u8], pos: &mut usize) {
+    let mut written = 0;
+    while written < buf.len() {
+        let chunk = buf.len() - written;
+        let remaining = pcm.len() - *pos;
+        if chunk <= remaining {
+            buf[written..written + chunk].copy_from_slice(&pcm[*pos..*pos + chunk]);
+            written += chunk;
+            *pos += chunk;
+            if *pos >= pcm.len() {
+                *pos = 0;
+            }
+        } else {
+            buf[written..written + remaining].copy_from_slice(&pcm[*pos..*pos + remaining]);
+            written += remaining;
             *pos = 0;
         }
     }
-    n
 }
 
 #[esp_rtos::main]
@@ -130,27 +128,26 @@ async fn main(_spawner: Spawner) {
     };
 
     println!(
-        "PCM samples: {} ({:.1} s)",
+        "PCM bytes: {} ({:.1} s)",
         PCM.len(),
-        PCM.len() as f32 / SAMPLE_RATE as f32
+        PCM.len() as f32 / (SAMPLE_RATE * 2) as f32
     );
 
     // Fill initial DMA buffer from PCM
     let buffer = tx_buffer;
     let mut pcm_pos: usize = 0;
-    fill_samples(buffer, PCM, &mut pcm_pos);
+    fill_buf(buffer, PCM, &mut pcm_pos);
 
     let mut filler = [0u8; 10000];
 
     println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
     loop {
-        fill_samples(&mut filler, PCM, &mut pcm_pos);
+        fill_buf(&mut filler, PCM, &mut pcm_pos);
         let written = transaction.push(&filler).await.unwrap();
         // If the circular buffer couldn't accept all data, rewind pcm_pos
         if written < filler.len() {
-            let skipped = (filler.len() - written) / 2;
-            pcm_pos = (pcm_pos + PCM.len() - skipped) % PCM.len();
+            pcm_pos = (pcm_pos + PCM.len() - (filler.len() - written)) % PCM.len();
         }
         println!("pos {}/{}", pcm_pos, PCM.len());
     }
