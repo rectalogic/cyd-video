@@ -25,13 +25,28 @@ use {
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-const SINE: [i16; 64] = [
-    0, 3211, 6392, 9511, 12539, 15446, 18204, 20787, 23169, 25329, 27244, 28897, 30272, 31356,
-    32137, 32609, 32767, 32609, 32137, 31356, 30272, 28897, 27244, 25329, 23169, 20787, 18204,
-    15446, 12539, 9511, 6392, 3211, 0, -3211, -6392, -9511, -12539, -15446, -18204, -20787, -23169,
-    -25329, -27244, -28897, -30272, -31356, -32137, -32609, -32767, -32609, -32137, -31356, -30272,
-    -28897, -27244, -25329, -23169, -20787, -18204, -15446, -12539, -9511, -6392, -3211,
-];
+/// PCM audio encoded as: `ffmpeg … -acodec pcm_u8 -ar 16000 -ac 1`
+/// 8-bit unsigned, 16 kHz, mono. Silence = 128.
+static PCM: &[u8] = include_bytes!("audio.pcm");
+
+const SAMPLE_RATE: u32 = 16_000;
+const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
+
+#[inline]
+fn pcm_u8_to_i16(raw: u8) -> i16 {
+    (raw.wrapping_sub(128) as i16) << 8
+}
+
+/// Write one mono → stereo i16 frame (4 bytes) into `buf[off..]`.
+/// Both channels carry the same sample.
+#[inline]
+fn write_frame(buf: &mut [u8], off: usize, sample: i16) {
+    let b = sample.to_le_bytes();
+    buf[off] = b[0];
+    buf[off + 1] = b[1];
+    buf[off + 2] = b[0];
+    buf[off + 3] = b[1];
+}
 
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
@@ -82,7 +97,7 @@ async fn main(_spawner: Spawner) {
             peripherals.I2S0,
             dma_channel,
             Config::new_tdm_philips()
-                .with_sample_rate(Rate::from_hz(44100))
+                .with_sample_rate(Rate::from_hz(SAMPLE_RATE))
                 .with_data_format(DataFormat::Data16Channel16)
                 .with_channels(Channels::STEREO),
         )
@@ -112,8 +127,8 @@ async fn main(_spawner: Spawner) {
                     mclk_inverted: false,
                     sclk_inverted: false,
                     mclk_from_mclk_pin: true,
-                    mclk_frequency: 11_289_600,
-                    sample_frequency: 44100,
+                    mclk_frequency: MCLK_FREQ,
+                    sample_frequency: SAMPLE_RATE,
                 },
                 Resolution::Bits16,
                 Resolution::Bits16,
@@ -132,48 +147,43 @@ async fn main(_spawner: Spawner) {
         i2s_tx
     };
 
-    // Fill buffer with stereo-interleaved i16 samples (same value on both channels)
+    println!(
+        "PCM samples: {} ({:.1} s)",
+        PCM.len(),
+        PCM.len() as f32 / SAMPLE_RATE as f32
+    );
+
+    // Fill initial DMA buffer from PCM, wrapping around
     let buffer = tx_buffer;
-    let num_frames = buffer.len() / 4; // 4 bytes per stereo frame (2×i16)
-    let mut sine_idx: usize = 0;
+    let num_frames = buffer.len() / 4; // 4 bytes per stereo frame
+    let mut pcm_pos: usize = 0;
     for frame in 0..num_frames {
-        let sample = SINE[sine_idx];
-        let bytes = sample.to_le_bytes();
-        let off = frame * 4;
-        buffer[off + 0] = bytes[0];
-        buffer[off + 1] = bytes[1];
-        buffer[off + 2] = bytes[0];
-        buffer[off + 3] = bytes[1];
-        sine_idx += 1;
-        if sine_idx >= SINE.len() {
-            sine_idx = 0;
+        write_frame(buffer, frame * 4, pcm_u8_to_i16(PCM[pcm_pos]));
+        pcm_pos += 1;
+        if pcm_pos >= PCM.len() {
+            pcm_pos = 0;
         }
     }
 
     let mut filler = [0u8; 10000];
     let filler_frames = filler.len() / 4;
-    let mut sample_idx = num_frames % SINE.len();
 
     println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
     loop {
-        let mut si = sample_idx;
         for f in 0..filler_frames {
-            let sample = SINE[si];
-            let bytes = sample.to_le_bytes();
-            let off = f * 4;
-            filler[off + 0] = bytes[0];
-            filler[off + 1] = bytes[1];
-            filler[off + 2] = bytes[0];
-            filler[off + 3] = bytes[1];
-            si += 1;
-            if si >= SINE.len() {
-                si = 0;
+            write_frame(&mut filler, f * 4, pcm_u8_to_i16(PCM[pcm_pos]));
+            pcm_pos += 1;
+            if pcm_pos >= PCM.len() {
+                pcm_pos = 0;
             }
         }
-        println!("Next");
         let written = transaction.push(&filler).await.unwrap();
-        sample_idx = (sample_idx + written / 4) % SINE.len();
-        println!("written {}", written);
+        // If the circular buffer couldn't accept all data, rewind pcm_pos
+        if written < filler.len() {
+            let skipped_frames = (filler.len() - written) / 4;
+            pcm_pos = (pcm_pos + PCM.len() - skipped_frames) % PCM.len();
+        }
+        println!("pos {}/{}", pcm_pos, PCM.len());
     }
 }
