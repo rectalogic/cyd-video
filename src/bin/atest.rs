@@ -114,8 +114,7 @@ async fn main(_spawner: Spawner) {
         codec.mute(&mut i2c, false).unwrap();
         println!("ES8311 initialized");
 
-        // Let codec settle, then enable amp
-        delay.delay_ms(100);
+        // Enable amp
         audio_enable.set_low();
         println!("Amp enabled");
 
