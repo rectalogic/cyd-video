@@ -127,29 +127,31 @@ async fn play(
         return; // end of stream
     };
     let buffer_len = buffer.len();
-    let initial = buffer_len.min(first_frame_pcm.len());
-    buffer[..initial].copy_from_slice(&first_frame_pcm[..initial]);
+
+    // Pre-load only a fraction of the buffer so that the first push() call
+    // has room to write immediately without waiting for the DMA to advance.
+    // Pre-loading the full buffer (as done previously) left zero free space,
+    // causing push() to yield and the DMA to wrap around and re-read stale
+    // data before fresh data arrived — skipping the first ~250ms of audio.
+    let preload = (buffer_len / 4).min(first_frame_pcm.len());
+    buffer[..preload].copy_from_slice(&first_frame_pcm[..preload]);
 
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
-    let mut pending = &first_frame_pcm[initial..]; // remainder of frame not yet pushed
+    let mut pending = &first_frame_pcm[preload..];
 
     loop {
-        // If we have pending data from a partially-pushed frame, push that first
         if !pending.is_empty() {
             let written = transaction.push(pending).await.unwrap();
             pending = &pending[written..];
-            continue; // try to finish this frame before decoding the next
+            continue;
         }
 
-        // Decode the next AVI audio frame
         let Some(next_frame_pcm) = frames.next() else {
             break; // end of stream
         };
 
-        // Push as much as the DMA buffer can accept right now
         let written = transaction.push(next_frame_pcm).await.unwrap();
         if written < next_frame_pcm.len() {
-            // Not all fit — save the remainder for the next iteration
             pending = &next_frame_pcm[written..];
         }
     }
