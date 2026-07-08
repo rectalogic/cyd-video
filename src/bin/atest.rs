@@ -2,6 +2,7 @@
 #![no_main]
 #![cfg(esp32s3)]
 
+use core::iter::repeat_n;
 use embassy_executor::Spawner;
 use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
@@ -112,48 +113,53 @@ async fn main(_spawner: Spawner) {
         PCM.len() as f32 / (SAMPLE_RATE * 2) as f32
     );
 
-    play(i2s_tx, tx_buffer).await;
+    play(i2s_tx, tx_buffer, repeat_n(PCM, 4)).await;
 }
 
-async fn play(i2s_tx: I2sTx<'_, Async>, buffer: &mut [u8]) {
-    let mut pcm_pos: usize;
-
+async fn play(
+    i2s_tx: I2sTx<'_, Async>,
+    buffer: &mut [u8],
+    mut frames: impl Iterator<Item = &[u8]>,
+) {
+    let Some(first_frame_pcm) = frames.next() else {
+        return; // end of stream
+    };
     let buffer_len = buffer.len();
-    // Pre-fill DMA buffer with the start of PCM so playback begins cleanly
-    {
-        let initial = buffer_len.min(PCM.len());
-        buffer[..initial].copy_from_slice(&PCM[..initial]);
-        pcm_pos = initial;
-    }
+    let initial = buffer_len.min(first_frame_pcm.len());
+    buffer[..initial].copy_from_slice(&first_frame_pcm[..initial]);
 
-    println!("Start");
     let mut transaction = i2s_tx.write_dma_circular_async(buffer).unwrap();
+    let mut pending = &first_frame_pcm[initial..]; // remainder of frame not yet pushed
 
-    // Push remaining PCM data
-    while pcm_pos < PCM.len() {
-        let remaining = PCM.len() - pcm_pos;
-        let written = transaction
-            .push(&PCM[pcm_pos..pcm_pos + remaining])
-            .await
-            .unwrap();
-        pcm_pos += written;
-        println!("pos {}/{}", pcm_pos, PCM.len());
+    loop {
+        // If we have pending data from a partially-pushed frame, push that first
+        if !pending.is_empty() {
+            let written = transaction.push(pending).await.unwrap();
+            pending = &pending[written..];
+            continue; // try to finish this frame before decoding the next
+        }
+
+        // Decode the next AVI audio frame
+        let Some(next_frame_pcm) = frames.next() else {
+            break; // end of stream
+        };
+
+        // Push as much as the DMA buffer can accept right now
+        let written = transaction.push(next_frame_pcm).await.unwrap();
+        if written < next_frame_pcm.len() {
+            // Not all fit — save the remainder for the next iteration
+            pending = &next_frame_pcm[written..];
+        }
     }
 
-    // Drain: push silence until the entire buffer has been overwritten.
-    // push() returns after writing to the DMA buffer, not after playback —
-    // so data we just pushed is still queued ahead of the DMA read pointer.
-    // By pushing buffer.len() bytes of silence, we guarantee all real audio
-    // has been consumed before we stop the DMA.
+    // End-of-stream: fill remaining buffer with silence to avoid looping
+    // Option A: push silence explicitly
     const SILENCE: [u8; 512] = [0u8; 512];
     let mut silence_pushed: usize = 0;
     while silence_pushed < buffer_len {
         let written = transaction.push(&SILENCE).await.unwrap();
         silence_pushed += written;
     }
-
-    // Now only silence remains in the buffer — safe to stop.
-    drop(transaction);
 
     println!("Done");
 }
