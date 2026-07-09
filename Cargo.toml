@@ -63,6 +63,7 @@ embedded-io = "0.7"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.2.0", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
+embassy-sync = "0.8.0"
 
 [target.xtensa-esp32-none-elf.dependencies]
 esp-hal = { workspace = true, features = ["esp32"] }

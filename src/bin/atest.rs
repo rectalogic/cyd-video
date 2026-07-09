@@ -4,7 +4,6 @@
 
 use core::iter::repeat_n;
 use embassy_executor::Spawner;
-use embedded_hal::delay::DelayNs;
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
@@ -52,8 +51,6 @@ async fn main(_spawner: Spawner) {
     let i2s_tx = {
         // Amp off initially (IO1 HIGH = disabled)
         let mut audio_enable = Output::new(peripherals.GPIO1, Level::High, OutputConfig::default());
-        let mut delay = Delay;
-        delay.delay_ms(10);
 
         // Build I2S TX — mono: hardware duplicates each sample to both L/R channels
         let i2s_tx = I2s::new(
@@ -82,6 +79,7 @@ async fn main(_spawner: Spawner) {
         .with_sda(peripherals.GPIO16)
         .with_scl(peripherals.GPIO15);
 
+        let mut delay = Delay;
         let codec = Es8311::new(0x18);
         codec
             .init(
