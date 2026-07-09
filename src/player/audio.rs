@@ -17,8 +17,8 @@ const SAMPLE_RATE: u32 = 16_000;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 const DMA_SIZE: usize = 4096;
 
-pub struct AudioPlayer<'a> {
-    transaction: I2sWriteDmaTransferAsync<'a, &'static mut [u8; DMA_SIZE]>,
+pub struct AudioPlayer {
+    transaction: I2sWriteDmaTransferAsync<'static, &'static mut [u8; DMA_SIZE]>,
 }
 
 pub struct Peripherals {
@@ -46,7 +46,7 @@ pub enum AudioError {
     Es8311(es8311::Error<esp_hal::i2c::master::Error>),
 }
 
-impl<'a> AudioPlayer<'a> {
+impl AudioPlayer {
     pub fn new(peripherals: Peripherals) -> Result<Self, AudioError> {
         let (_, _, tx_buffer, tx_descriptors) = dma_circular_buffers!(0, DMA_SIZE);
 
@@ -150,4 +150,4 @@ impl<'a> AudioPlayer<'a> {
 }
 
 #[embassy_executor::task]
-pub async fn audio_player(player: AudioPlayer<'static>) {}
+pub async fn audio_player(player: AudioPlayer) {}

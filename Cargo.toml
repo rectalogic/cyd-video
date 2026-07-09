@@ -22,6 +22,7 @@ log = [
     "embedded-sdmmc/log",
     "embassy-executor/log",
     "embassy-time/log",
+    "embassy-sync/log",
 ]
 
 [workspace.dependencies]
@@ -45,6 +46,7 @@ esp-alloc = "0.10.0"
 log = "0.4.27"
 embassy-executor = "0.10.0"
 embassy-time = "0.5.0"
+embassy-sync = "0.8.0"
 critical-section = "1.2.0"
 static_cell      = "2.1.1"
 
@@ -57,8 +59,9 @@ embedded-graphics = "0.8.1"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="ce5710f", default-features = false }
 embedded-io = "0.7"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.2.0", default-features = false, features = ["embedded-io"] }
+riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.3.0", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
+bytes = { version = "1", default-features = false }
 
 [target.xtensa-esp32-none-elf.dependencies]
 esp-hal = { workspace = true, features = ["esp32"] }

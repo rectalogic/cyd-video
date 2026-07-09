@@ -23,7 +23,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) -> ! {
     // generator version: 1.1.0
 
     const AVI_DIRECTORY: &str = "AVI";
@@ -116,11 +116,15 @@ async fn main(_spawner: Spawner) -> ! {
             sda: peripherals.GPIO16,
             scl: peripherals.GPIO15,
         };
-        static AUDIO_PLAYER: cyd_player::player::audio::AudioPlayer<'static> =
-            match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
-                Ok(audio_player) => audio_player,
-                Err(e) => display.message(format_args!("Audio error: {e:?}")),
-            };
+        let audio_player = match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
+            Ok(audio_player) => audio_player,
+            Err(e) => display.message(format_args!("Audio error: {e:?}")),
+        };
+        let spawn_token = match cyd_player::player::audio::audio_player(audio_player) {
+            Ok(spawn_token) => spawn_token,
+            Err(e) => display.message(format_args!("Failed to spawn audio task: {e:?}")),
+        };
+        spawner.spawn(spawn_token);
     }
 
     log::info!("Loading dir {AVI_DIRECTORY}");
