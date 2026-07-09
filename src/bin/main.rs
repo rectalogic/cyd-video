@@ -41,6 +41,8 @@ async fn main(_spawner: Spawner) -> ! {
     const SIZE: usize = 73744;
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: SIZE);
+    #[cfg(esp32s3)]
+    esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let sw_interrupt =
