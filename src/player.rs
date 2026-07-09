@@ -5,9 +5,9 @@ use core::ops::{ControlFlow, DerefMut};
 use crate::{
     display::{CENTER, Display},
     error::Error,
+    player::video::{JpegDrawable, MjpegDecoder},
     sdcard::SdCard,
     touch::TouchDetector,
-    video::{mjpeg::MjpegDecoder, render::JpegDrawable},
 };
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
@@ -15,9 +15,9 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
-mod esp_new_jpeg;
-pub mod mjpeg;
-mod render;
+pub use video::MjpegError;
+
+mod video;
 
 mod tag {
     use super::Fourcc;

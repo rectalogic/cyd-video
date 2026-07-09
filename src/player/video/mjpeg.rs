@@ -1,4 +1,4 @@
-use crate::video::esp_new_jpeg::{
+use super::esp_new_jpeg::{
     jpeg_calloc_align, jpeg_dec_close, jpeg_dec_config_t, jpeg_dec_get_outbuf_len,
     jpeg_dec_get_process_count, jpeg_dec_handle_t, jpeg_dec_header_info_t, jpeg_dec_io_t,
     jpeg_dec_open, jpeg_dec_parse_header, jpeg_dec_process, jpeg_error_t, jpeg_free_align,
