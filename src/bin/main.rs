@@ -27,6 +27,8 @@ esp_bootloader_esp_idf::esp_app_desc!();
 async fn main(_spawner: Spawner) -> ! {
     // generator version: 1.1.0
 
+    const AVI_DIRECTORY: &str = "AVI";
+
     #[cfg(feature = "log")]
     esp_println::logger::init_logger_from_env();
 
@@ -97,10 +99,10 @@ async fn main(_spawner: Spawner) -> ! {
     };
     let touch_detector = TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
 
-    let avi_dir = env!("AVI_DIRECTORY");
-    log::info!("Loading dir {avi_dir}");
+    log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) =
-        cyd_player::video::play_directory(avi_dir, &mut sdcard, &mut display, &touch_detector).await
+        cyd_player::video::play_directory(AVI_DIRECTORY, &mut sdcard, &mut display, &touch_detector)
+            .await
     {
         display.message(format_args!("{e:?}"))
     };

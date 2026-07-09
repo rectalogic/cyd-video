@@ -7,19 +7,16 @@
                     "target": "xtensa-esp32s3-none-elf",
                     "extraEnv": {
                         "RUSTUP_TOOLCHAIN": "esp",
-                        "AVI_DIRECTORY": "AVI"
                     }
                 },
                 "server": {
                     "extraEnv": {
                         "RUSTUP_TOOLCHAIN": "stable",
-                        "AVI_DIRECTORY": "AVI"
                     }
                 },
                 "check": {
                     "extraEnv": {
                         "RUSTUP_TOOLCHAIN": "esp",
-                        "AVI_DIRECTORY": "AVI"
                     }
                 }
             }
