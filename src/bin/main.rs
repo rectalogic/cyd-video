@@ -7,7 +7,6 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
-use cyd_player::touch::TouchDetector;
 use embassy_executor::Spawner;
 
 use esp_backtrace as _;
@@ -70,6 +69,7 @@ async fn main(_spawner: Spawner) -> ! {
         bl: peripherals.GPIO45.into(),
     };
     let mut display = cyd_player::display::Display::new(display_peripherals);
+
     #[cfg(esp32)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
@@ -99,7 +99,29 @@ async fn main(_spawner: Spawner) -> ! {
     let touch_peripherals = cyd_player::touch::Peripherals {
         irq: peripherals.GPIO17.into(),
     };
-    let touch_detector = TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
+    let touch_detector =
+        cyd_player::touch::TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
+
+    #[cfg(esp32s3)]
+    {
+        let audio_peripherals = cyd_player::player::audio::Peripherals {
+            i2s: peripherals.I2S0,
+            i2c: peripherals.I2C0,
+            dma_channel: peripherals.DMA_CH0,
+            audio_enable: peripherals.GPIO1,
+            mclk: peripherals.GPIO4,
+            bclk: peripherals.GPIO5,
+            ws: peripherals.GPIO7,
+            dout: peripherals.GPIO8,
+            sda: peripherals.GPIO16,
+            scl: peripherals.GPIO15,
+        };
+        static AUDIO_PLAYER: cyd_player::player::audio::AudioPlayer<'static> =
+            match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
+                Ok(audio_player) => audio_player,
+                Err(e) => display.message(format_args!("Audio error: {e:?}")),
+            };
+    }
 
     log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) = cyd_player::player::play_directory(

@@ -3,7 +3,7 @@ use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
 use riffparse::binrw;
 
-use crate::{display::DisplayError, player::MjpegError};
+use crate::{display::DisplayError, player::video::MjpegError};
 
 #[derive(Debug)]
 pub enum Error {

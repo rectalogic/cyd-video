@@ -59,7 +59,6 @@ embedded-io = "0.7"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.2.0", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
-es8311 = "0.1.1"
 
 [target.xtensa-esp32-none-elf.dependencies]
 esp-hal = { workspace = true, features = ["esp32"] }
@@ -74,6 +73,7 @@ esp-rtos = { workspace = true, features = ["esp32s3"] }
 esp-bootloader-esp-idf = { workspace = true, features = ["esp32s3"] }
 esp-backtrace = { workspace = true, features = ["esp32s3"] }
 esp-println = { workspace = true, features = ["esp32s3"] }
+es8311 = "0.1.1"
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.

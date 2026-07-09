@@ -15,9 +15,9 @@ use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
-pub use video::MjpegError;
-
-mod video;
+#[cfg(esp32s3)]
+pub mod audio;
+pub mod video;
 
 mod tag {
     use super::Fourcc;
