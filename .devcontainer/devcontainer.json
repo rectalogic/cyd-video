@@ -1,17 +1,22 @@
 {
-  "name": "cyd-video",
-  "build": {
-    "dockerfile": "Dockerfile",
-  },
-  "remoteEnv": {
-    "AVI_DIRECTORY": "AVI",
-  },
-  "runArgs": ["--privileged"],
-  "mounts": [
-    {
-      "source": "${localEnv:HOME}/.gitconfig",
-      "target": "/home/esp/.gitconfig",
-      "type": "bind",
+    "name": "cyd-video",
+    "build": {
+        "dockerfile": "Dockerfile"
     },
-  ],
+    "remoteEnv": {
+        "AVI_DIRECTORY": "AVI"
+    },
+    "runArgs": ["--privileged"],
+    "mounts": [
+        {
+            "source": "${localEnv:HOME}/.gitconfig",
+            "target": "/home/esp/.gitconfig",
+            "type": "bind"
+        },
+        {
+            "source": "${localEnv:HOME}/.codex",
+            "target": "/home/esp/.codex",
+            "type": "bind"
+        }
+    ]
 }

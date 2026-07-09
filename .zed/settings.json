@@ -1,28 +1,28 @@
 {
-  "lsp": {
-    "rust-analyzer": {
-      "initialization_options": {
-        "cargo": {
-          "allTargets": false,
-          "target": "xtensa-esp32-none-elf",
-          "extraEnv": {
-            "RUSTUP_TOOLCHAIN": "esp",
-            "AVI_DIRECTORY": "AVI",
-          },
-        },
-        "server": {
-          "extraEnv": {
-            "RUSTUP_TOOLCHAIN": "stable",
-            "AVI_DIRECTORY": "AVI",
-          },
-        },
-        "check": {
-          "extraEnv": {
-            "RUSTUP_TOOLCHAIN": "esp",
-            "AVI_DIRECTORY": "AVI",
-          },
-        },
-      },
-    },
-  },
+    "lsp": {
+        "rust-analyzer": {
+            "initialization_options": {
+                "cargo": {
+                    "allTargets": false,
+                    "target": "xtensa-esp32s3-none-elf",
+                    "extraEnv": {
+                        "RUSTUP_TOOLCHAIN": "esp",
+                        "AVI_DIRECTORY": "AVI"
+                    }
+                },
+                "server": {
+                    "extraEnv": {
+                        "RUSTUP_TOOLCHAIN": "stable",
+                        "AVI_DIRECTORY": "AVI"
+                    }
+                },
+                "check": {
+                    "extraEnv": {
+                        "RUSTUP_TOOLCHAIN": "esp",
+                        "AVI_DIRECTORY": "AVI"
+                    }
+                }
+            }
+        }
+    }
 }
