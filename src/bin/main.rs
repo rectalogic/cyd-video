@@ -23,7 +23,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(_spawner: Spawner) -> ! {
     // generator version: 1.1.0
 
     const AVI_DIRECTORY: &str = "AVI";
@@ -124,7 +124,7 @@ async fn main(spawner: Spawner) -> ! {
             Ok(spawn_token) => spawn_token,
             Err(e) => display.message(format_args!("Failed to spawn audio task: {e:?}")),
         };
-        spawner.spawn(spawn_token);
+        _spawner.spawn(spawn_token);
     }
 
     log::info!("Loading dir {AVI_DIRECTORY}");

@@ -91,7 +91,7 @@ where
     const BUFFER_SIZE: usize = 15 * 1024;
     let mut buffer = BytesMut::with_capacity(BUFFER_SIZE);
 
-    display.clear(Rgb565::BLACK).expect("clear");
+    display.clear(Rgb565::BLACK).map_err(Error::DisplayError)?;
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
