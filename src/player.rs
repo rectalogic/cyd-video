@@ -91,7 +91,7 @@ where
     const BUFFER_SIZE: usize = 15 * 1024;
     let mut buffer = BytesMut::with_capacity(BUFFER_SIZE);
 
-    display.clear(Rgb565::BLACK).map_err(Error::DisplayError)?;
+    display.clear(Rgb565::BLACK).map_err(Error::Display)?;
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
@@ -118,9 +118,7 @@ where
             }
         }
         start = Some(Instant::now());
-        image
-            .draw(display.deref_mut())
-            .map_err(Error::DisplayError)?;
+        image.draw(display.deref_mut()).map_err(Error::Display)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
             display.clear(Rgb565::BLUE).expect("clear");

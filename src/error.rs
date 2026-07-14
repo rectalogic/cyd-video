@@ -3,52 +3,39 @@ use embedded_sdmmc::SdCardError;
 use esp_hal::spi::master::ConfigError;
 use riffparse::binrw;
 
-use crate::{display::DisplayError, player::video::MjpegError};
+use crate::{
+    display::DisplayError,
+    player::{DemuxError, video::MjpegError},
+};
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    SpiConfigError(ConfigError),
-    SpiError(esp_hal::spi::Error),
-    DisplayError(DisplayError),
-    SdCardError(embedded_sdmmc::Error<SdCardError>),
-    ReadError(embedded_sdmmc::Error<SdCardError>),
-    ReadExactError(ReadExactError<embedded_sdmmc::Error<SdCardError>>),
-    BinReadError(binrw::Error),
-    DecodeErrors(MjpegError),
-}
-
-impl From<ConfigError> for Error {
-    fn from(value: ConfigError) -> Self {
-        Error::SpiConfigError(value)
-    }
-}
-
-impl From<embedded_sdmmc::Error<SdCardError>> for Error {
-    fn from(value: embedded_sdmmc::Error<SdCardError>) -> Self {
-        Error::SdCardError(value)
-    }
-}
-
-impl From<ReadExactError<embedded_sdmmc::Error<SdCardError>>> for Error {
-    fn from(value: ReadExactError<embedded_sdmmc::Error<SdCardError>>) -> Self {
-        Error::ReadExactError(value)
-    }
+    #[error("SPI configuration failed: `{0}`")]
+    SpiConfig(#[from] ConfigError),
+    #[error("SPI error: `{0:?}`")]
+    Spi(esp_hal::spi::Error),
+    #[error("Display error: `{0:?}`")]
+    Display(DisplayError),
+    #[error("SD card error: `{0}`")]
+    SdCard(#[from] embedded_sdmmc::Error<SdCardError>),
+    #[error("SD card read exact error: `{0}`")]
+    ReadExact(#[from] ReadExactError<embedded_sdmmc::Error<SdCardError>>),
+    #[error("bin read error: `{0:?}`")]
+    BinRead(binrw::Error),
+    #[error("MJPEG decode error: `{0}`")]
+    Decode(#[from] MjpegError),
+    #[error("AVI demux error: `{0}`")]
+    Demux(#[from] DemuxError),
 }
 
 impl From<esp_hal::spi::Error> for Error {
     fn from(value: esp_hal::spi::Error) -> Self {
-        Error::SpiError(value)
+        Error::Spi(value)
     }
 }
 
 impl From<binrw::Error> for Error {
     fn from(value: binrw::Error) -> Self {
-        Error::BinReadError(value)
-    }
-}
-
-impl From<MjpegError> for Error {
-    fn from(value: MjpegError) -> Self {
-        Error::DecodeErrors(value)
+        Error::BinRead(value)
     }
 }
