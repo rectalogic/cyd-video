@@ -9,22 +9,16 @@ use crate::{
     sdcard::SdCard,
     touch::TouchDetector,
 };
-pub use demuxer::DemuxError;
-use embassy_time::{Duration, Instant, Timer};
+pub use demux::DemuxError;
+use embassy_time::{Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
-use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
 #[cfg(esp32s3)]
 pub mod audio;
-mod demuxer;
+mod demux;
 pub mod video;
-
-mod tag {
-    use super::Fourcc;
-    pub const MJPG: Fourcc = Fourcc::new(*b"MJPG");
-}
 
 pub async fn play_directory(
     avi_dir: &str,
@@ -74,21 +68,9 @@ async fn play<R>(
 where
     R: Read + Seek,
 {
-    let avi_parser = avi::AviParser::new(RiffParser::new(EmbeddedAdapter(reader)))?;
-    let Some(video_stream) = avi_parser.find_best_stream::<avi::VideoStream>() else {
-        log::error!("No video stream found");
-        return Ok(());
-    };
-    let stream_id = video_stream.stream_id;
-    if !matches!(video_stream.stream_header.fcc_handler, tag::MJPG) {
-        log::error!(
-            "Unsupported fourcc {:?}",
-            video_stream.stream_header.fcc_handler
-        );
-        return Ok(());
-    }
+    let mut demuxer = demux::Demuxer::new(reader)?;
+    let frame_duration = demuxer.frame_duration();
 
-    let frame_duration = Duration::from_micros(avi_parser.avi_header.micro_sec_per_frame as u64);
     // 15K buffer to read compressed JPG 320x240 image
     const BUFFER_SIZE: usize = 15 * 1024;
     let mut buffer = BytesMut::with_capacity(BUFFER_SIZE);
@@ -97,11 +79,9 @@ where
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
-    for (count, chunk) in avi_parser.movi_chunks(|id| id == stream_id).enumerate() {
-        let chunk = chunk?;
-        avi_parser
-            .riff_parser()
-            .read_data_bytes(chunk, &mut buffer)?;
+    let mut count = 0;
+    while let Some(chunk) = demuxer.next_video_chunk() {
+        demuxer.read_chunk_data(chunk?, &mut buffer)?;
         let jpeg_size = match size {
             Some(size) => size,
             None => {
@@ -126,6 +106,7 @@ where
             display.clear(Rgb565::BLUE).expect("clear");
             return Ok(());
         }
+        count += 1;
     }
     Ok(())
 }

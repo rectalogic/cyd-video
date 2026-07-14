@@ -3,7 +3,8 @@ extern crate alloc;
 use super::audio;
 use crate::error::Error;
 use alloc::{boxed::Box, collections::VecDeque};
-use embassy_time::{Duration, Instant, Timer};
+use bytes::BytesMut;
+use embassy_time::Duration;
 use embedded_io::{Read, Seek};
 use riffparse::{Chunk, EmbeddedAdapter, Riff, RiffParser, avi, fourcc};
 use thiserror::Error;
@@ -26,6 +27,8 @@ pub enum DemuxError {
 type ChunkIter<R> = avi::ChunkIter<EmbeddedAdapter<R>, Box<dyn FnMut(fourcc::Fourcc) -> bool>>;
 
 pub struct Demuxer<R> {
+    avi_parser: avi::AviParser<EmbeddedAdapter<R>>,
+    frame_duration: Duration,
     video_chunks: ChunkCache,
     audio_chunks: ChunkCache,
     chunk_iter: ChunkIter<R>,
@@ -76,10 +79,16 @@ where
         let chunk_iter = avi_parser.movi_chunks(filter);
 
         Ok(Self {
+            avi_parser,
+            frame_duration,
             video_chunks: ChunkCache::new(video_stream_id),
             audio_chunks: ChunkCache::new(audio_stream_id),
             chunk_iter,
         })
+    }
+
+    pub fn frame_duration(&self) -> Duration {
+        self.frame_duration
     }
 
     pub fn next_video_chunk(&mut self) -> Option<Result<Riff<Chunk>, Error>> {
@@ -90,6 +99,13 @@ where
     pub fn next_audio_chunk(&mut self) -> Option<Result<Riff<Chunk>, Error>> {
         self.audio_chunks
             .next(&mut self.chunk_iter, &mut self.video_chunks)
+    }
+
+    pub fn read_chunk_data(&self, chunk: Riff<Chunk>, buffer: &mut BytesMut) -> Result<(), Error> {
+        self.avi_parser
+            .riff_parser()
+            .read_data_bytes(chunk, buffer)
+            .map_err(Error::BinRead)
     }
 }
 
