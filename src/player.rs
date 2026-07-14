@@ -9,6 +9,7 @@ use crate::{
     sdcard::SdCard,
     touch::TouchDetector,
 };
+pub use demuxer::DemuxError;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
@@ -17,6 +18,7 @@ use riffparse::{EmbeddedAdapter, RiffParser, avi, fourcc::Fourcc};
 
 #[cfg(esp32s3)]
 pub mod audio;
+mod demuxer;
 pub mod video;
 
 mod tag {
@@ -95,7 +97,7 @@ where
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
-    for (count, chunk) in avi_parser.movi_chunks(stream_id).enumerate() {
+    for (count, chunk) in avi_parser.movi_chunks(|id| id == stream_id).enumerate() {
         let chunk = chunk?;
         avi_parser
             .riff_parser()

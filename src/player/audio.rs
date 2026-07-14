@@ -13,7 +13,10 @@ use esp_hal::{
 };
 use thiserror::Error;
 
-const SAMPLE_RATE: u32 = 16_000;
+pub const SAMPLE_RATE: u32 = 16_000;
+pub const SAMPLE_DATA_FORMAT: u16 = 16;
+pub const SAMPLE_CHANNELS: u8 = 1;
+
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 const DMA_SIZE: usize = 4096;
 
@@ -63,8 +66,16 @@ impl AudioPlayer {
                 peripherals.dma_channel,
                 I2sConfig::new_tdm_philips()
                     .with_sample_rate(Rate::from_hz(SAMPLE_RATE))
-                    .with_data_format(DataFormat::Data16Channel16)
-                    .with_channels(Channels::MONO),
+                    .with_data_format(match SAMPLE_DATA_FORMAT {
+                        16 => DataFormat::Data16Channel16,
+                        32 => DataFormat::Data32Channel32,
+                        _ => panic!("Invalid data format"),
+                    })
+                    .with_channels(match SAMPLE_CHANNELS {
+                        1 => Channels::MONO,
+                        2 => Channels::STEREO,
+                        _ => panic!("Invalid channel count"),
+                    }),
             )?
             .with_mclk(peripherals.mclk)
             .into_async()

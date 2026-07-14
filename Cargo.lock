@@ -1535,8 +1535,8 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "riffparse"
-version = "0.3.0"
-source = "git+https://github.com/rectalogic/riffparse.git?tag=0.3.0#97dacd84253cd621fd2945983b16fed77d12bd78"
+version = "0.4.0"
+source = "git+https://github.com/rectalogic/riffparse.git?tag=0.4.0#1d9b05c10b77c42b8e51d57ba2e3871952b6e283"
 dependencies = [
  "binrw",
  "bytes",

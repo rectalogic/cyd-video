@@ -59,7 +59,7 @@ embedded-graphics = "0.8.1"
 embedded-sdmmc = { git = "https://github.com/rust-embedded-community/embedded-sdmmc-rs.git", rev="ce5710f", default-features = false }
 embedded-io = "0.7"  # match embedded-sdmmc
 format_no_std = "1.2.0"
-riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.3.0", default-features = false, features = ["embedded-io"] }
+riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.4.0", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
 bytes = { version = "1", default-features = false }
 
