@@ -15,7 +15,6 @@ use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
-#[cfg(esp32s3)]
 pub mod audio;
 mod demux;
 pub mod video;

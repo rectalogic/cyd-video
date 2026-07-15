@@ -1,10 +1,5 @@
-[target.xtensa-esp32-none-elf]
-runner = "espflash flash --monitor --chip esp32"
-rustflags = ["--cfg", "esp32"]
-
 [target.xtensa-esp32s3-none-elf]
 runner = "espflash flash --monitor --chip esp32s3"
-rustflags = ["--cfg", "esp32s3"]
 
 [env]
 ESP_LOG="info"
@@ -13,12 +8,7 @@ ESP_LOG="info"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
 ]
+target = "xtensa-esp32s3-none-elf"
 
 [unstable]
 build-std = ["alloc", "core"]
-
-[alias]
-run-esp32 = "run --target=xtensa-esp32-none-elf"
-run-esp32s3 = "run --target=xtensa-esp32s3-none-elf"
-build-esp32 = "build --target=xtensa-esp32-none-elf"
-build-esp32s3 = "build --target=xtensa-esp32s3-none-elf"

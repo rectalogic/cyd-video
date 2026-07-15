@@ -3,8 +3,6 @@ use std::{env, path::PathBuf};
 fn main() {
     linker_be_nice();
 
-    println!("cargo::rustc-check-cfg=cfg(esp32)");
-    println!("cargo::rustc-check-cfg=cfg(esp32s3)");
     esp_new_jpeg();
 
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
@@ -12,16 +10,9 @@ fn main() {
 }
 
 fn esp_new_jpeg() {
-    let target = std::env::var("TARGET").unwrap();
-    let chip = match target.as_str() {
-        t if t.starts_with("xtensa-esp32-") => "esp32",
-        t if t.starts_with("xtensa-esp32s3-") => "esp32s3",
-        _ => panic!("unsupported target: {target}"),
-    };
-
     // Link the esp_new_jpeg C library for JPEG decoding
     println!(
-        "cargo:rustc-link-search=native={}/esp-adf-libs/esp_new_jpeg/lib/{chip}",
+        "cargo:rustc-link-search=native={}/esp-adf-libs/esp_new_jpeg/lib/esp32s3",
         std::env::var("CARGO_MANIFEST_DIR").unwrap(),
     );
     println!("cargo:rustc-link-lib=static=esp_new_jpeg");

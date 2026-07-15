@@ -1,16 +1,17 @@
 # CYD Video
 
-Video player for the esp32 ["Cheap Yellow Display"](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display) (`ESP32-2432S028R` based on `ESP32-D0WDQ6`) and
-[esp32-s3 display](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display).
+Originally a video player for the esp32
+["Cheap Yellow Display" (CYD)](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display) (`ESP32-2432S028R`), like [this](https://www.aliexpress.us/item/3256804785406072.html).
 
-For example [esp32s3](https://www.aliexpress.us/item/3256811919417733.html),
-[esp32](https://www.aliexpress.us/item/3256804785406072.html).
+However JPEG decoding was too slow on that device, and it was difficult to support audio.
+
+So this is now a video player for the esp32s3 [E32N28P/E32C28P](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), like [this](https://www.aliexpress.us/item/3256811919417733.html).
 
 ## Development
 
 ```sh-session
-$ cargo install espup espflash esp-generate
-$ espup install --targets esp32 esp32s3
+$ cargo install espup espflash
+$ espup install --targets esp32s3
 ```
 
 Configure environment variables, see the
@@ -21,14 +22,12 @@ The SD card must have an `AVI` directory containing 8.3 filename AVI videos enco
 
 ```sh-session
 $ cd cyd-player
-$ cargo run-esp32
-$ cargo run-esp32s3
+$ cargo run --release
 ```
 or
 ```sh-session
 $ cd cyd-player
-$ cargo build-esp32
-$ cargo build-esp32s3
+$ cargo build --release
 ```
 
 Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
@@ -36,8 +35,3 @@ Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
 ```sh-session
 $ scripts/encode.sh <input.mp4> output.avi
 ```
-
-## Performance
-
-On esp32 playback can nearly achieve 15fps.
-esp32s3 if much faster.

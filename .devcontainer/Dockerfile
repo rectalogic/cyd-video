@@ -1,4 +1,4 @@
-FROM docker.io/espressif/idf-rust:esp32_latest
+FROM docker.io/espressif/idf-rust:esp32s3_latest
 
 USER root
 RUN apt-get update \

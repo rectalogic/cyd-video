@@ -23,7 +23,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) -> ! {
     // generator version: 1.1.0
 
     const AVI_DIRECTORY: &str = "AVI";
@@ -34,13 +34,7 @@ async fn main(_spawner: Spawner) -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    #[cfg(esp32)]
-    const SIZE: usize = 98768;
-    #[cfg(esp32s3)]
-    const SIZE: usize = 73744;
-
-    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: SIZE);
-    #[cfg(esp32s3)]
+    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
@@ -48,21 +42,9 @@ async fn main(_spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
-    #[cfg(esp32)]
-    let display_peripherals = cyd_player::display::Peripherals {
-        spi2: peripherals.SPI2,
-        dc: peripherals.GPIO2.into(),
-        rst: Some(peripherals.GPIO4.into()),
-        mosi: peripherals.GPIO13.into(),
-        sclk: peripherals.GPIO14.into(),
-        cs: peripherals.GPIO15.into(),
-        bl: peripherals.GPIO21.into(),
-    };
-    #[cfg(esp32s3)]
     let display_peripherals = cyd_player::display::Peripherals {
         spi2: peripherals.SPI2,
         dc: peripherals.GPIO46.into(),
-        rst: None,
         mosi: peripherals.GPIO11.into(),
         sclk: peripherals.GPIO12.into(),
         cs: peripherals.GPIO10.into(),
@@ -70,15 +52,6 @@ async fn main(_spawner: Spawner) -> ! {
     };
     let display = cyd_player::display::Display::new(display_peripherals);
 
-    #[cfg(esp32)]
-    let sdcard_peripherals = cyd_player::sdcard::Peripherals {
-        spi3: peripherals.SPI3,
-        cs: peripherals.GPIO5.into(),
-        sclk: peripherals.GPIO18.into(),
-        miso: peripherals.GPIO19.into(),
-        mosi: peripherals.GPIO23.into(),
-    };
-    #[cfg(esp32s3)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
         spi3: peripherals.SPI3,
         cs: peripherals.GPIO47.into(),
@@ -94,41 +67,33 @@ async fn main(_spawner: Spawner) -> ! {
             .message(format_args!("SD card error: {e:?}")),
     };
 
-    #[cfg(esp32)]
-    let touch_peripherals = cyd_player::touch::Peripherals {
-        irq: peripherals.GPIO36.into(),
-    };
-    #[cfg(esp32s3)]
     let touch_peripherals = cyd_player::touch::Peripherals {
         irq: peripherals.GPIO17.into(),
     };
     let touch_detector =
         cyd_player::touch::TouchDetector::new(peripherals.IO_MUX, touch_peripherals);
 
-    #[cfg(esp32s3)]
-    {
-        let audio_peripherals = cyd_player::player::audio::Peripherals {
-            i2s: peripherals.I2S0,
-            i2c: peripherals.I2C0,
-            dma_channel: peripherals.DMA_CH0,
-            audio_enable: peripherals.GPIO1,
-            mclk: peripherals.GPIO4,
-            bclk: peripherals.GPIO5,
-            ws: peripherals.GPIO7,
-            dout: peripherals.GPIO8,
-            sda: peripherals.GPIO16,
-            scl: peripherals.GPIO15,
-        };
-        let audio_player = match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
-            Ok(audio_player) => audio_player,
-            Err(e) => display.lock().await.message(format_args!("Audio error: {e:?}")),
-        };
-        let spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
-            Ok(spawn_token) => spawn_token,
-            Err(e) => display.lock().await.message(format_args!("Failed to spawn audio task: {e:?}")),
-        };
-        _spawner.spawn(spawn_token);
-    }
+    let audio_peripherals = cyd_player::player::audio::Peripherals {
+        i2s: peripherals.I2S0,
+        i2c: peripherals.I2C0,
+        dma_channel: peripherals.DMA_CH0,
+        audio_enable: peripherals.GPIO1,
+        mclk: peripherals.GPIO4,
+        bclk: peripherals.GPIO5,
+        ws: peripherals.GPIO7,
+        dout: peripherals.GPIO8,
+        sda: peripherals.GPIO16,
+        scl: peripherals.GPIO15,
+    };
+    let audio_player = match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
+        Ok(audio_player) => audio_player,
+        Err(e) => display.lock().await.message(format_args!("Audio error: {e:?}")),
+    };
+    let spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
+        Ok(spawn_token) => spawn_token,
+        Err(e) => display.lock().await.message(format_args!("Failed to spawn audio task: {e:?}")),
+    };
+    spawner.spawn(spawn_token);
 
     log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) = cyd_player::player::play_directory(

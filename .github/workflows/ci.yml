@@ -24,12 +24,11 @@ jobs:
         uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
-          buildtargets: "esp32,esp32s3"
+          buildtargets: "esp32s3"
           ldproxy: false
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
       - name: Run checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy --target xtensa-esp32-none-elf -- -D warnings
-          cargo clippy --target xtensa-esp32s3-none-elf -- -D warnings
+          cargo clippy --all-features -- -D warnings

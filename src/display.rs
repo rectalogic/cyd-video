@@ -9,7 +9,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex};
 use embassy_time::Delay;
 use embedded_graphics::{
     draw_target::DrawTarget,
-    mono_font::{MonoTextStyle, ascii::FONT_6X10},
+    mono_font::{ascii::FONT_6X10, MonoTextStyle},
     pixelcolor::Rgb565,
     prelude::*,
     text::{Baseline, Text},
@@ -20,23 +20,21 @@ use embedded_hal::{
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
-    Blocking,
     gpio::{AnyPin, Level, Output, OutputConfig},
     peripherals::SPI2,
     spi::{
-        Mode as SpiMode,
         master::{Config as SpiConfig, Spi},
+        Mode as SpiMode,
     },
     time::Rate,
+    Blocking,
 };
 use mipidsi::{
-    Builder,
     interface::SpiInterface,
     models::{ILI9341Rgb565, Model},
-    options::{ColorOrder, Orientation, Rotation},
+    options::{ColorInversion, ColorOrder, Orientation, Rotation},
+    Builder, NoResetPin,
 };
-#[cfg(esp32s3)]
-use mipidsi::{NoResetPin, options::ColorInversion};
 use static_cell::StaticCell;
 
 type DisplayTypeRst<RST> = mipidsi::Display<
@@ -44,9 +42,6 @@ type DisplayTypeRst<RST> = mipidsi::Display<
     ILI9341Rgb565,
     RST,
 >;
-#[cfg(esp32)]
-type DisplayType = DisplayTypeRst<Output<'static>>;
-#[cfg(esp32s3)]
 type DisplayType = DisplayTypeRst<NoResetPin>;
 
 pub type DisplayAsyncMutex = mutex::Mutex<CriticalSectionRawMutex, Display>;
@@ -63,9 +58,7 @@ pub const CENTER: Point = Point::new(
 pub struct Peripherals {
     pub spi2: SPI2<'static>,
     pub dc: AnyPin<'static>,
-    // No RST for esp32s3
-    pub rst: Option<AnyPin<'static>>,
-    // miso GPIO12(esp32)/GPIO11(esp32s3) not needed
+    // miso GPIO11 not needed
     pub mosi: AnyPin<'static>,
     pub sclk: AnyPin<'static>,
     pub cs: AnyPin<'static>,
@@ -98,21 +91,8 @@ impl Display {
         let spi_dev = ExclusiveDevice::new_no_delay(spi, NoCs).expect("infallible");
         let interface = SpiInterface::new(spi_dev, dc, display_buffer);
 
-        #[cfg(esp32)]
-        let mut display_builder = {
-            let mut rst = Output::new(
-                peripherals.rst.unwrap(),
-                Level::Low,
-                OutputConfig::default(),
-            );
-            rst.set_high();
-            Builder::new(ILI9341Rgb565, interface).reset_pin(rst)
-        };
-        #[cfg(esp32s3)]
-        let mut display_builder =
-            Builder::new(ILI9341Rgb565, interface).invert_colors(ColorInversion::Inverted);
-
-        display_builder = display_builder
+        let mut display = Builder::new(ILI9341Rgb565, interface)
+            .invert_colors(ColorInversion::Inverted)
             .display_size(
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.0,
                 ILI9341Rgb565::FRAMEBUFFER_SIZE.1,
@@ -122,9 +102,7 @@ impl Display {
                 Orientation::new()
                     .rotate(Rotation::Deg270)
                     .flip_horizontal(),
-            );
-
-        let mut display = display_builder
+            )
             .init(&mut Delay)
             .expect("display builder init");
 
