@@ -92,14 +92,23 @@ async fn main(spawner: Spawner) -> ! {
             .await
             .message(format_args!("Audio error: {e:?}")),
     };
-    let spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
+    let audio_spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
         Ok(spawn_token) => spawn_token,
         Err(e) => display
             .lock()
             .await
             .message(format_args!("Failed to spawn audio task: {e:?}")),
     };
-    spawner.spawn(spawn_token);
+    spawner.spawn(audio_spawn_token);
+
+    let video_spawn_token = match cyd_player::player::video::video_task(display) {
+        Ok(spawn_token) => spawn_token,
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("Failed to spawn video task: {e:?}")),
+    };
+    spawner.spawn(video_spawn_token);
 
     log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) =

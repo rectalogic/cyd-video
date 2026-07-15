@@ -1,21 +1,18 @@
 extern crate alloc;
-use alloc::vec::Vec;
-use core::ops::{ControlFlow, DerefMut};
+
+use core::ops::ControlFlow;
 
 use crate::{
-    display::{CENTER, DisplayAsyncMutex},
-    error::Error,
-    player::video::{JpegDrawable, MjpegDecoder},
-    sdcard::SdCard,
+    display::DisplayAsyncMutex, error::Error, player::video::VIDEO_BUFFERS, sdcard::SdCard,
     touch::TouchDetector,
 };
 pub use demux::DemuxError;
 use embassy_time::{Instant, Timer};
-use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
 pub mod audio;
+mod buffers;
 mod demux;
 pub mod video;
 
@@ -73,31 +70,12 @@ where
     let mut demuxer = demux::Demuxer::new(reader)?;
     let frame_duration = demuxer.frame_duration();
 
-    // 15K buffer to read compressed JPG 320x240 image
-    const BUFFER_SIZE: usize = 15 * 1024;
-    let mut buffer = Vec::with_capacity(BUFFER_SIZE);
-
-    display
-        .lock()
-        .await
-        .deref_mut()
-        .clear(Rgb565::BLACK)
-        .map_err(Error::Display)?;
-    let decoder = MjpegDecoder::new()?;
-    let mut size = None;
     let mut start: Option<Instant> = None;
     let mut count = 0;
     while let Some(chunk) = demuxer.next_video_chunk() {
+        let mut buffer = VIDEO_BUFFERS.get_recycled().await;
         demuxer.read_chunk_data(chunk?, &mut buffer)?;
-        let jpeg_size = match size {
-            Some(size) => size,
-            None => {
-                let (w, h) = decoder.prepare(&buffer)?;
-                *size.insert(Size::new(w as u32, h as u32))
-            }
-        };
-        let drawable = JpegDrawable::new(&decoder, jpeg_size, &buffer);
-        let image = Image::with_center(&drawable, CENTER);
+
         if let Some(start) = start {
             let elapsed = start.elapsed();
             if frame_duration > elapsed {
@@ -106,17 +84,18 @@ where
                 log::warn!("lag {:?}", elapsed - frame_duration);
             }
         }
+        VIDEO_BUFFERS.send(buffer).await;
         start = Some(Instant::now());
-        let mut display_guard = display.lock().await;
-        image
-            .draw(display_guard.deref_mut().deref_mut())
-            .map_err(Error::Display)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
-            display_guard.clear(Rgb565::BLUE).expect("clear");
-            return Ok(());
+            break;
         }
         count += 1;
     }
+
+    // Send empty buffer
+    let mut buffer = VIDEO_BUFFERS.get_recycled().await;
+    buffer.clear();
+    VIDEO_BUFFERS.send(buffer).await;
     Ok(())
 }
