@@ -3,7 +3,7 @@ use bytes::BytesMut;
 use core::ops::{ControlFlow, DerefMut};
 
 use crate::{
-    display::{CENTER, Display},
+    display::{CENTER, DisplayAsyncMutex},
     error::Error,
     player::video::{JpegDrawable, MjpegDecoder},
     sdcard::SdCard,
@@ -23,7 +23,7 @@ pub mod video;
 pub async fn play_directory(
     avi_dir: &str,
     sdcard: &mut SdCard,
-    display: &mut Display,
+    display: &'static DisplayAsyncMutex,
     touch_detector: &TouchDetector,
 ) -> Result<(), Error> {
     log::info!("Loading dir {avi_dir}");
@@ -51,9 +51,9 @@ pub async fn play_directory(
         match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
             Ok(file) => match play(file, display, touch_detector).await {
                 Ok(_) => {}
-                Err(e) => display.message(format_args!("{e:?}")),
+                Err(e) => display.lock().await.message(format_args!("{e:?}")),
             },
-            Err(e) => display.message(format_args!("{filename} error: {e:?}")),
+            Err(e) => display.lock().await.message(format_args!("{filename} error: {e:?}")),
         };
     }
 
@@ -62,7 +62,7 @@ pub async fn play_directory(
 
 async fn play<R>(
     reader: R,
-    display: &mut Display,
+    display: &'static DisplayAsyncMutex,
     touch_detector: &TouchDetector,
 ) -> Result<(), Error>
 where
@@ -75,7 +75,7 @@ where
     const BUFFER_SIZE: usize = 15 * 1024;
     let mut buffer = BytesMut::with_capacity(BUFFER_SIZE);
 
-    display.clear(Rgb565::BLACK).map_err(Error::Display)?;
+    display.lock().await.deref_mut().clear(Rgb565::BLACK).map_err(Error::Display)?;
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
@@ -100,10 +100,11 @@ where
             }
         }
         start = Some(Instant::now());
-        image.draw(display.deref_mut()).map_err(Error::Display)?;
+        let mut display_guard = display.lock().await;
+        image.draw(display_guard.deref_mut().deref_mut()).map_err(Error::Display)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
-            display.clear(Rgb565::BLUE).expect("clear");
+            display_guard.clear(Rgb565::BLUE).expect("clear");
             return Ok(());
         }
         count += 1;

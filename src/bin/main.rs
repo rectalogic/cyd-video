@@ -68,7 +68,7 @@ async fn main(_spawner: Spawner) -> ! {
         cs: peripherals.GPIO10.into(),
         bl: peripherals.GPIO45.into(),
     };
-    let mut display = cyd_player::display::Display::new(display_peripherals);
+    let display = cyd_player::display::Display::new(display_peripherals);
 
     #[cfg(esp32)]
     let sdcard_peripherals = cyd_player::sdcard::Peripherals {
@@ -88,7 +88,10 @@ async fn main(_spawner: Spawner) -> ! {
     };
     let mut sdcard = match cyd_player::sdcard::SdCard::new(sdcard_peripherals) {
         Ok(sdcard) => sdcard,
-        Err(e) => display.message(format_args!("SD card error: {e:?}")),
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("SD card error: {e:?}")),
     };
 
     #[cfg(esp32)]
@@ -118,11 +121,11 @@ async fn main(_spawner: Spawner) -> ! {
         };
         let audio_player = match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
             Ok(audio_player) => audio_player,
-            Err(e) => display.message(format_args!("Audio error: {e:?}")),
+            Err(e) => display.lock().await.message(format_args!("Audio error: {e:?}")),
         };
         let spawn_token = match cyd_player::player::audio::audio_player(audio_player) {
             Ok(spawn_token) => spawn_token,
-            Err(e) => display.message(format_args!("Failed to spawn audio task: {e:?}")),
+            Err(e) => display.lock().await.message(format_args!("Failed to spawn audio task: {e:?}")),
         };
         _spawner.spawn(spawn_token);
     }
@@ -131,12 +134,12 @@ async fn main(_spawner: Spawner) -> ! {
     if let Err(e) = cyd_player::player::play_directory(
         AVI_DIRECTORY,
         &mut sdcard,
-        &mut display,
+        display,
         &touch_detector,
     )
     .await
     {
-        display.message(format_args!("{e:?}"))
+        display.lock().await.message(format_args!("{e:?}"))
     };
 
     unreachable!();

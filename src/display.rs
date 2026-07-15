@@ -5,6 +5,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex};
 use embassy_time::Delay;
 use embedded_graphics::{
     draw_target::DrawTarget,
@@ -48,6 +49,8 @@ type DisplayType = DisplayTypeRst<Output<'static>>;
 #[cfg(esp32s3)]
 type DisplayType = DisplayTypeRst<NoResetPin>;
 
+pub type DisplayAsyncMutex = mutex::Mutex<CriticalSectionRawMutex, Display>;
+
 pub type DisplayError = <DisplayType as DrawTarget>::Error;
 
 pub const DISPLAY_WIDTH: u32 = ILI9341Rgb565::FRAMEBUFFER_SIZE.0 as u32;
@@ -75,7 +78,7 @@ pub struct Display {
 
 impl Display {
     #[expect(clippy::large_stack_frames)]
-    pub fn new(peripherals: Peripherals) -> Self {
+    pub fn new(peripherals: Peripherals) -> &'static DisplayAsyncMutex {
         let spi = Spi::new(
             peripherals.spi2,
             SpiConfig::default()
@@ -128,7 +131,8 @@ impl Display {
         let _backlight = Output::new(peripherals.bl, Level::High, OutputConfig::default());
         display.clear(Rgb565::BLACK).expect("display clear");
 
-        Self { display }
+        static DISPLAY: StaticCell<DisplayAsyncMutex> = StaticCell::new();
+        DISPLAY.init(mutex::Mutex::new(Self { display }))
     }
 
     pub fn message(&mut self, args: fmt::Arguments) -> ! {
