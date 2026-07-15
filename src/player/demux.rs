@@ -2,8 +2,7 @@ extern crate alloc;
 
 use super::audio;
 use crate::error::Error;
-use alloc::{boxed::Box, collections::VecDeque};
-use bytes::BytesMut;
+use alloc::{boxed::Box, collections::VecDeque, vec::Vec};
 use embassy_time::Duration;
 use embedded_io::{Read, Seek};
 use riffparse::{Chunk, EmbeddedAdapter, Riff, RiffParser, avi, fourcc};
@@ -101,10 +100,10 @@ where
             .next(&mut self.chunk_iter, &mut self.video_chunks)
     }
 
-    pub fn read_chunk_data(&self, chunk: Riff<Chunk>, buffer: &mut BytesMut) -> Result<(), Error> {
+    pub fn read_chunk_data(&self, chunk: Riff<Chunk>, buffer: &mut Vec<u8>) -> Result<(), Error> {
         self.avi_parser
             .riff_parser()
-            .read_data_bytes(chunk, buffer)
+            .read_data_vec(chunk, buffer)
             .map_err(Error::BinRead)
     }
 }

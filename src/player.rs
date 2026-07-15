@@ -1,5 +1,5 @@
 extern crate alloc;
-use bytes::BytesMut;
+use alloc::vec::Vec;
 use core::ops::{ControlFlow, DerefMut};
 
 use crate::{
@@ -52,7 +52,10 @@ pub async fn play_directory(
                 Ok(_) => {}
                 Err(e) => display.lock().await.message(format_args!("{e:?}")),
             },
-            Err(e) => display.lock().await.message(format_args!("{filename} error: {e:?}")),
+            Err(e) => display
+                .lock()
+                .await
+                .message(format_args!("{filename} error: {e:?}")),
         };
     }
 
@@ -72,9 +75,14 @@ where
 
     // 15K buffer to read compressed JPG 320x240 image
     const BUFFER_SIZE: usize = 15 * 1024;
-    let mut buffer = BytesMut::with_capacity(BUFFER_SIZE);
+    let mut buffer = Vec::with_capacity(BUFFER_SIZE);
 
-    display.lock().await.deref_mut().clear(Rgb565::BLACK).map_err(Error::Display)?;
+    display
+        .lock()
+        .await
+        .deref_mut()
+        .clear(Rgb565::BLACK)
+        .map_err(Error::Display)?;
     let decoder = MjpegDecoder::new()?;
     let mut size = None;
     let mut start: Option<Instant> = None;
@@ -100,7 +108,9 @@ where
         }
         start = Some(Instant::now());
         let mut display_guard = display.lock().await;
-        image.draw(display_guard.deref_mut().deref_mut()).map_err(Error::Display)?;
+        image
+            .draw(display_guard.deref_mut().deref_mut())
+            .map_err(Error::Display)?;
 
         if count % 5 == 0 && touch_detector.was_touched() {
             display_guard.clear(Rgb565::BLUE).expect("clear");

@@ -9,7 +9,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex};
 use embassy_time::Delay;
 use embedded_graphics::{
     draw_target::DrawTarget,
-    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    mono_font::{MonoTextStyle, ascii::FONT_6X10},
     pixelcolor::Rgb565,
     prelude::*,
     text::{Baseline, Text},
@@ -20,20 +20,20 @@ use embedded_hal::{
 };
 use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
+    Blocking,
     gpio::{AnyPin, Level, Output, OutputConfig},
     peripherals::SPI2,
     spi::{
-        master::{Config as SpiConfig, Spi},
         Mode as SpiMode,
+        master::{Config as SpiConfig, Spi},
     },
     time::Rate,
-    Blocking,
 };
 use mipidsi::{
+    Builder, NoResetPin,
     interface::SpiInterface,
     models::{ILI9341Rgb565, Model},
     options::{ColorInversion, ColorOrder, Orientation, Rotation},
-    Builder, NoResetPin,
 };
 use static_cell::StaticCell;
 

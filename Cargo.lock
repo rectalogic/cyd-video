@@ -149,12 +149,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
-name = "bytes"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
-
-[[package]]
 name = "cc"
 version = "1.2.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -227,7 +221,6 @@ name = "cyd-player"
 version = "0.1.0"
 dependencies = [
  "bindgen",
- "bytes",
  "critical-section",
  "embassy-executor",
  "embassy-sync 0.8.0",
@@ -1527,7 +1520,6 @@ version = "0.5.0"
 source = "git+https://github.com/rectalogic/riffparse.git?tag=0.5.0#986011ca04932d9638bac9cefc8862465c12b8f4"
 dependencies = [
  "binrw",
- "bytes",
  "embedded-io 0.7.1",
 ]
 
