@@ -2,13 +2,13 @@ use embassy_time::Delay;
 use es8311::{ClockConfig, Es8311, Resolution};
 use esp_hal::{
     dma_circular_buffers,
-    gpio::{Level, Output, OutputConfig},
+    gpio::{AnyPin, Level, Output, OutputConfig},
     i2c::master::{Config as I2cConfig, ConfigError as I2cConfigError, I2c},
     i2s::master::{
         Channels, Config as I2sConfig, ConfigError as I2sConfigError, DataFormat,
         Error as I2sError, I2s, asynch::I2sWriteDmaTransferAsync,
     },
-    peripherals::{DMA_CH0, GPIO1, GPIO4, GPIO5, GPIO7, GPIO8, GPIO15, GPIO16, I2C0, I2S0},
+    peripherals::{DMA_CH0, I2C0, I2S0},
     time::Rate,
 };
 use thiserror::Error;
@@ -28,13 +28,13 @@ pub struct Peripherals {
     pub i2s: I2S0<'static>,
     pub i2c: I2C0<'static>,
     pub dma_channel: DMA_CH0<'static>,
-    pub audio_enable: GPIO1<'static>,
-    pub mclk: GPIO4<'static>,
-    pub bclk: GPIO5<'static>,
-    pub ws: GPIO7<'static>,
-    pub dout: GPIO8<'static>,
-    pub sda: GPIO16<'static>,
-    pub scl: GPIO15<'static>,
+    pub audio_enable: AnyPin<'static>,
+    pub mclk: AnyPin<'static>,
+    pub bclk: AnyPin<'static>,
+    pub ws: AnyPin<'static>,
+    pub dout: AnyPin<'static>,
+    pub sda: AnyPin<'static>,
+    pub scl: AnyPin<'static>,
 }
 
 #[derive(Error, Debug)]

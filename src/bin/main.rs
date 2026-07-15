@@ -77,32 +77,34 @@ async fn main(spawner: Spawner) -> ! {
         i2s: peripherals.I2S0,
         i2c: peripherals.I2C0,
         dma_channel: peripherals.DMA_CH0,
-        audio_enable: peripherals.GPIO1,
-        mclk: peripherals.GPIO4,
-        bclk: peripherals.GPIO5,
-        ws: peripherals.GPIO7,
-        dout: peripherals.GPIO8,
-        sda: peripherals.GPIO16,
-        scl: peripherals.GPIO15,
+        audio_enable: peripherals.GPIO1.into(),
+        mclk: peripherals.GPIO4.into(),
+        bclk: peripherals.GPIO5.into(),
+        ws: peripherals.GPIO7.into(),
+        dout: peripherals.GPIO8.into(),
+        sda: peripherals.GPIO16.into(),
+        scl: peripherals.GPIO15.into(),
     };
     let audio_player = match cyd_player::player::audio::AudioPlayer::new(audio_peripherals) {
         Ok(audio_player) => audio_player,
-        Err(e) => display.lock().await.message(format_args!("Audio error: {e:?}")),
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("Audio error: {e:?}")),
     };
     let spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
         Ok(spawn_token) => spawn_token,
-        Err(e) => display.lock().await.message(format_args!("Failed to spawn audio task: {e:?}")),
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("Failed to spawn audio task: {e:?}")),
     };
     spawner.spawn(spawn_token);
 
     log::info!("Loading dir {AVI_DIRECTORY}");
-    if let Err(e) = cyd_player::player::play_directory(
-        AVI_DIRECTORY,
-        &mut sdcard,
-        display,
-        &touch_detector,
-    )
-    .await
+    if let Err(e) =
+        cyd_player::player::play_directory(AVI_DIRECTORY, &mut sdcard, display, &touch_detector)
+            .await
     {
         display.lock().await.message(format_args!("{e:?}"))
     };
