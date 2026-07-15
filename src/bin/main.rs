@@ -123,7 +123,7 @@ async fn main(_spawner: Spawner) -> ! {
             Ok(audio_player) => audio_player,
             Err(e) => display.lock().await.message(format_args!("Audio error: {e:?}")),
         };
-        let spawn_token = match cyd_player::player::audio::audio_player(audio_player) {
+        let spawn_token = match cyd_player::player::audio::audio_task(audio_player) {
             Ok(spawn_token) => spawn_token,
             Err(e) => display.lock().await.message(format_args!("Failed to spawn audio task: {e:?}")),
         };

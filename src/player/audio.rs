@@ -161,4 +161,4 @@ impl AudioPlayer {
 }
 
 #[embassy_executor::task]
-pub async fn audio_player(player: AudioPlayer) {}
+pub async fn audio_task(player: AudioPlayer) {}
