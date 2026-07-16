@@ -85,14 +85,8 @@ async fn main(spawner: Spawner) -> ! {
         sda: peripherals.GPIO16.into(),
         scl: peripherals.GPIO15.into(),
     };
-    let audio_output = match cyd_player::player::audio::AudioOutput::new(audio_peripherals) {
-        Ok(audio_player) => audio_player,
-        Err(e) => display
-            .lock()
-            .await
-            .message(format_args!("Audio error: {e:?}")),
-    };
-    let audio_spawn_token = match cyd_player::player::audio::audio_task(audio_output, display) {
+    let audio_spawn_token = match cyd_player::player::audio::audio_task(audio_peripherals, display)
+    {
         Ok(spawn_token) => spawn_token,
         Err(e) => display
             .lock()
