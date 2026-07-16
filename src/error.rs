@@ -5,7 +5,7 @@ use riffparse::binrw;
 
 use crate::{
     display::DisplayError,
-    player::{DemuxError, video::MjpegError},
+    player::{DemuxError, audio::AudioError, video::MjpegError},
 };
 
 #[derive(thiserror::Error, Debug)]
@@ -26,6 +26,8 @@ pub enum Error {
     Decode(#[from] MjpegError),
     #[error("AVI demux error: `{0}`")]
     Demux(#[from] DemuxError),
+    #[error("AVI audio error: `{0}`")]
+    Audio(#[from] AudioError),
 }
 
 impl From<esp_hal::spi::Error> for Error {

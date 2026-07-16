@@ -48,7 +48,7 @@ pub async fn play_directory(
     for filename in filenames_cycle {
         log::info!("Playing {filename}");
         match directory.open_file_in_dir(filename, embedded_sdmmc::Mode::ReadOnly) {
-            Ok(file) => match play(file, display, touch_detector).await {
+            Ok(file) => match play(file, touch_detector).await {
                 Ok(_) => {}
                 Err(e) => display.lock().await.message(format_args!("{e:?}")),
             },
@@ -62,11 +62,7 @@ pub async fn play_directory(
     Ok(())
 }
 
-async fn play<R>(
-    reader: R,
-    display: &'static DisplayAsyncMutex,
-    touch_detector: &TouchDetector,
-) -> Result<(), Error>
+async fn play<R>(reader: R, touch_detector: &TouchDetector) -> Result<(), Error>
 where
     R: Read + Seek,
 {
