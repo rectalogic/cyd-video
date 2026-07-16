@@ -31,7 +31,10 @@ pub async fn play_directory(
     let mut filenames: [Option<ShortFileName>; MAX_FILES] = [None; _];
     let mut index: usize = 0;
     directory.iterate_dir(|entry| {
-        if index < MAX_FILES && !entry.attributes.is_directory() && entry.name.extension() == b"AVI"
+        if index < MAX_FILES
+            && !entry.attributes.is_directory()
+            && entry.name.extension() == b"AVI"
+            && &entry.name.base_name()[0..2] != b"._"
         {
             log::info!("Found {}", entry.name);
             filenames[index] = Some(entry.name);
@@ -74,7 +77,7 @@ where
     let mut count = 0;
     while let Some(chunk) = demuxer.next_video_chunk() {
         let mut buffer = VIDEO_BUFFERS.get_recycled().await;
-        demuxer.read_chunk_data(chunk?, &mut buffer)?;
+        demuxer.read_chunk_data(chunk?, &mut buffer.data)?;
 
         if let Some(start) = start {
             let elapsed = start.elapsed();
@@ -95,7 +98,7 @@ where
 
     // Send empty buffer
     let mut buffer = VIDEO_BUFFERS.get_recycled().await;
-    buffer.clear();
+    buffer.data.clear();
     VIDEO_BUFFERS.send(buffer).await;
     Ok(())
 }
