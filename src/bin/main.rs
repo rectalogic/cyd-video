@@ -10,7 +10,9 @@
 use embassy_executor::Spawner;
 
 use esp_backtrace as _;
-use esp_hal::{clock::CpuClock, timer::timg::TimerGroup};
+use esp_hal::{clock::CpuClock, system::Stack, timer::timg::TimerGroup};
+use esp_rtos::embassy::Executor;
+use static_cell::StaticCell;
 
 extern crate alloc;
 
@@ -95,14 +97,20 @@ async fn main(spawner: Spawner) -> ! {
     };
     spawner.spawn(audio_spawn_token);
 
-    let video_spawn_token = match cyd_player::player::video::video_task(display) {
-        Ok(spawn_token) => spawn_token,
-        Err(e) => display
-            .lock()
-            .await
-            .message(format_args!("Failed to spawn video task: {e:?}")),
-    };
-    spawner.spawn(video_spawn_token);
+    static APP_CORE_STACK: StaticCell<Stack<8192>> = StaticCell::new();
+    let app_core_stack = APP_CORE_STACK.init(Stack::new());
+    esp_rtos::start_second_core(
+        peripherals.CPU_CTRL,
+        sw_interrupt.software_interrupt1,
+        app_core_stack,
+        move || {
+            static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+            let executor = EXECUTOR.init(Executor::new());
+            executor.run(|spawner| {
+                spawner.spawn(cyd_player::player::video::video_task(display).unwrap());
+            });
+        },
+    );
 
     log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) =
