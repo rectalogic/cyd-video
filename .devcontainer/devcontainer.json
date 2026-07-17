@@ -3,10 +3,8 @@
     "build": {
         "dockerfile": "Dockerfile"
     },
-    "remoteEnv": {
-        "AVI_DIRECTORY": "AVI"
-    },
-    "runArgs": ["--privileged"],
+    "remoteUser": "esp",
+    "runArgs": ["--privileged", "--group-add=dialout"],
     "mounts": [
         {
             "source": "${localEnv:HOME}/.gitconfig",
