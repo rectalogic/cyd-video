@@ -17,8 +17,7 @@ use thiserror::Error;
 const MCLK_FREQ: u32 = SAMPLE_RATE * 256; // 4_096_000 Hz
 
 pub struct AudioDevice {
-    i2s_tx: I2sTx<'static, Async>,
-    tx_buffer: &'static mut [u8; AudioDevice::DMA_SIZE],
+    i2s_state: Option<I2sState>,
 }
 
 pub struct Peripherals {
@@ -32,6 +31,16 @@ pub struct Peripherals {
     pub dout: AnyPin<'static>,
     pub sda: AnyPin<'static>,
     pub scl: AnyPin<'static>,
+}
+
+enum I2sState {
+    I2sTx {
+        i2s_tx: I2sTx<'static, Async>,
+        tx_buffer: &'static mut [u8; AudioDevice::DMA_SIZE],
+    },
+    I2sWriteDmaTransferAsync(
+        I2sWriteDmaTransferAsync<'static, &'static mut [u8; AudioDevice::DMA_SIZE]>,
+    ),
 }
 
 #[derive(Error, Debug)]
@@ -118,25 +127,28 @@ impl AudioDevice {
             i2s_tx
         };
 
-        Ok(Self { i2s_tx, tx_buffer })
+        Ok(Self {
+            i2s_state: Some(I2sState::I2sTx { i2s_tx, tx_buffer }),
+        })
     }
 
-    pub fn output(self) -> Result<AudioOutput, AudioError> {
-        let transaction = self
-            .i2s_tx
-            .write_dma_circular_async(self.tx_buffer)
-            .map_err(AudioError::I2s)?;
-        Ok(AudioOutput { transaction })
-    }
-}
-
-pub struct AudioOutput {
-    transaction: I2sWriteDmaTransferAsync<'static, &'static mut [u8; AudioDevice::DMA_SIZE]>,
-}
-
-impl AudioOutput {
     pub async fn push(&mut self, buffer: &[u8]) -> Result<usize, AudioError> {
-        self.transaction.push(buffer).await.map_err(AudioError::I2s)
+        if let Some(I2sState::I2sWriteDmaTransferAsync(ref mut transaction)) = self.i2s_state {
+            return transaction.push(buffer).await.map_err(AudioError::I2s);
+        }
+
+        let i2s_state = self.i2s_state.take().unwrap();
+        match i2s_state {
+            I2sState::I2sTx { i2s_tx, tx_buffer } => {
+                let mut transaction = i2s_tx
+                    .write_dma_circular_async(tx_buffer)
+                    .map_err(AudioError::I2s)?;
+                let result = transaction.push(buffer).await.map_err(AudioError::I2s);
+                self.i2s_state = Some(I2sState::I2sWriteDmaTransferAsync(transaction));
+                result
+            }
+            _ => unreachable!(),
+        }
     }
 
     pub async fn fill_silence(&mut self, silence: &[u8]) -> Result<(), AudioError> {

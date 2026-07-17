@@ -1,5 +1,5 @@
 use crate::{display::DisplayAsyncMutex, error::Error, player::buffers::Buffers};
-pub use device::{AudioDevice, AudioError, AudioOutput, Peripherals};
+pub use device::{AudioDevice, AudioError, Peripherals};
 use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Timer};
 
@@ -21,7 +21,7 @@ pub static AUDIO_BUFFERS: Buffers<2> = Buffers::new();
 pub async fn audio_task(audio_peripherals: Peripherals, display: &'static DisplayAsyncMutex) {
     AUDIO_BUFFERS.init();
 
-    let audio_device = match AudioDevice::new(audio_peripherals) {
+    let mut audio_device = match AudioDevice::new(audio_peripherals) {
         Ok(audio_device) => audio_device,
         Err(e) => display
             .lock()
@@ -29,23 +29,8 @@ pub async fn audio_task(audio_peripherals: Peripherals, display: &'static Displa
             .message(format_args!("Audio error: {e:?}")),
     };
 
-    let mut audio_output = match audio_device.output() {
-        Ok(audio_output) => audio_output,
-        Err(e) => display
-            .lock()
-            .await
-            .message(format_args!("Audio output error: {e:?}")),
-    };
-
-    if let Err(e) = audio_output.fill_silence(&SILENCE).await {
-        display
-            .lock()
-            .await
-            .message(format_args!("Audio prefill error: {e:?}"))
-    }
-
     loop {
-        if let Err(e) = play(&mut audio_output).await {
+        if let Err(e) = play(&mut audio_device).await {
             display
                 .lock()
                 .await
@@ -54,7 +39,7 @@ pub async fn audio_task(audio_peripherals: Peripherals, display: &'static Displa
     }
 }
 
-async fn play(output: &mut AudioOutput) -> Result<(), Error> {
+async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
     loop {
         match select(
             AUDIO_BUFFERS.receive(),
@@ -69,17 +54,17 @@ async fn play(output: &mut AudioOutput) -> Result<(), Error> {
                 }
                 let mut remaining = buffer.data.as_slice();
                 while !remaining.is_empty() {
-                    remaining = &remaining[output.push(remaining).await?..];
+                    remaining = &remaining[audio_device.push(remaining).await?..];
                 }
             }
             Either::Second(_) => {
                 // Deadline fired — DMA is about to run dry, push silence
-                output.push(&SILENCE).await?;
+                audio_device.push(&SILENCE).await?;
             }
         }
     }
 
     // End-of-stream: cap with silence (same as before)
-    output.fill_silence(&SILENCE).await?;
+    audio_device.fill_silence(&SILENCE).await?;
     Ok(())
 }
