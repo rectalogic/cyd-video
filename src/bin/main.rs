@@ -87,16 +87,6 @@ async fn main(spawner: Spawner) -> ! {
         sda: peripherals.GPIO16.into(),
         scl: peripherals.GPIO15.into(),
     };
-    let audio_spawn_token = match cyd_player::player::audio::audio_task(audio_peripherals, display)
-    {
-        Ok(spawn_token) => spawn_token,
-        Err(e) => display
-            .lock()
-            .await
-            .message(format_args!("Failed to spawn audio task: {e:?}")),
-    };
-    spawner.spawn(audio_spawn_token);
-
     static APP_CORE_STACK: StaticCell<Stack<8192>> = StaticCell::new();
     let app_core_stack = APP_CORE_STACK.init(Stack::new());
     esp_rtos::start_second_core(
@@ -107,10 +97,21 @@ async fn main(spawner: Spawner) -> ! {
             static EXECUTOR: StaticCell<Executor> = StaticCell::new();
             let executor = EXECUTOR.init(Executor::new());
             executor.run(|spawner| {
-                spawner.spawn(cyd_player::player::video::video_task(display).unwrap());
+                spawner.spawn(
+                    cyd_player::player::audio::audio_task(audio_peripherals, display).unwrap(),
+                );
             });
         },
     );
+
+    let video_spawn_token = match cyd_player::player::video::video_task(display) {
+        Ok(spawn_token) => spawn_token,
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("Failed to spawn video task: {e:?}")),
+    };
+    spawner.spawn(video_spawn_token);
 
     log::info!("Loading dir {AVI_DIRECTORY}");
     if let Err(e) =

@@ -54,7 +54,7 @@ impl SdCard {
         sdcard.spi(|spi| {
             spi.bus_mut().apply_config(
                 &SpiConfig::default()
-                    .with_frequency(Rate::from_mhz(40))
+                    .with_frequency(Rate::from_mhz(60))
                     .with_mode(SpiMode::_0),
             )
         })?;

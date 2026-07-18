@@ -150,12 +150,4 @@ impl AudioDevice {
             _ => unreachable!(),
         }
     }
-
-    pub async fn fill_silence(&mut self, silence: &[u8]) -> Result<(), AudioError> {
-        let mut silence_pushed: usize = 0;
-        while silence_pushed < AudioDevice::DMA_SIZE {
-            silence_pushed += self.push(silence).await?;
-        }
-        Ok(())
-    }
 }
