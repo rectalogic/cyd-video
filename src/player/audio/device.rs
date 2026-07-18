@@ -132,6 +132,15 @@ impl AudioDevice {
         })
     }
 
+    pub async fn available(&mut self) -> Result<usize, AudioError> {
+        match self.i2s_state {
+            Some(I2sState::I2sWriteDmaTransferAsync(ref mut transaction)) => {
+                transaction.available().await.map_err(AudioError::I2s)
+            }
+            _ => Ok(AudioDevice::DMA_SIZE),
+        }
+    }
+
     pub async fn push(&mut self, buffer: &[u8]) -> Result<usize, AudioError> {
         if let Some(I2sState::I2sWriteDmaTransferAsync(ref mut transaction)) = self.i2s_state {
             return transaction.push(buffer).await.map_err(AudioError::I2s);

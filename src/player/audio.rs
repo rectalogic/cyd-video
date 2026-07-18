@@ -1,7 +1,7 @@
 use crate::{display::DisplayAsyncMutex, error::Error, player::buffers::Buffers};
 use core::sync::atomic::{AtomicU32, Ordering};
 pub use device::{AudioDevice, AudioError, Peripherals};
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant};
 
 mod device;
 
@@ -11,7 +11,7 @@ pub const SAMPLE_CHANNELS: u8 = 1;
 
 pub static AUDIO_BUFFERS: Buffers<3> = Buffers::new();
 
-pub static AUDIO_CLOCK: AtomicU32 = AtomicU32::new(0);
+static AUDIO_CLOCK: AtomicU32 = AtomicU32::new(0);
 
 #[embassy_executor::task]
 pub async fn audio_task(audio_peripherals: Peripherals, display: &'static DisplayAsyncMutex) {
@@ -38,7 +38,7 @@ pub async fn audio_task(audio_peripherals: Peripherals, display: &'static Displa
 async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
     let mut current_time: Option<Instant> = None;
     let mut latency_ms = 0;
-    AUDIO_CLOCK.store(0, Ordering::Relaxed);
+    AudioClock::store(0);
 
     loop {
         let buffer = AUDIO_BUFFERS.receive().await;
@@ -47,25 +47,40 @@ async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
         }
         let mut remaining = buffer.data.as_slice();
         while !remaining.is_empty() {
-            let bytes_written = audio_device.push(remaining).await?;
             let elapsed = match current_time {
-                Some(time) => (time.elapsed().as_millis() as u32).saturating_sub(latency_ms),
+                Some(time) => {
+                    remaining = &remaining[audio_device.push(remaining).await?..];
+                    (time.elapsed().as_millis() as u32).saturating_sub(latency_ms)
+                }
                 None => {
-                    latency_ms = audio_bytes_to_ms(AudioDevice::DMA_SIZE - bytes_written);
+                    let old_audio_bytes = AudioDevice::DMA_SIZE - audio_device.available().await?;
+                    latency_ms = AudioClock::audio_bytes_to_ms(old_audio_bytes);
+                    remaining = &remaining[audio_device.push(remaining).await?..];
                     current_time = Some(Instant::now());
                     0
                 }
             };
-            AUDIO_CLOCK.store(elapsed, Ordering::Relaxed);
-            remaining = &remaining[bytes_written..];
+            AudioClock::store(elapsed);
         }
     }
 
     Ok(())
 }
 
-const fn audio_bytes_to_ms(bytes: usize) -> u32 {
-    const BYTES_PER_MS: u32 =
-        (SAMPLE_RATE * SAMPLE_CHANNELS as u32 * SAMPLE_DATA_FORMAT as u32 / 8) / 1000;
-    bytes as u32 / BYTES_PER_MS
+pub struct AudioClock;
+
+impl AudioClock {
+    fn store(ms: u32) {
+        AUDIO_CLOCK.store(ms, Ordering::Relaxed);
+    }
+
+    pub fn time() -> Duration {
+        Duration::from_millis(AUDIO_CLOCK.load(Ordering::Relaxed) as u64)
+    }
+
+    const fn audio_bytes_to_ms(bytes: usize) -> u32 {
+        const BYTES_PER_MS: u32 =
+            (SAMPLE_RATE * SAMPLE_CHANNELS as u32 * SAMPLE_DATA_FORMAT as u32 / 8) / 1000;
+        bytes as u32 / BYTES_PER_MS
+    }
 }
