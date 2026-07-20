@@ -1,9 +1,10 @@
 extern crate alloc;
 use alloc::vec::Vec;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
+use embassy_time::{Duration, TimeoutError, with_timeout};
 
-pub struct Buffers<const SIZE: usize> {
-    buffers: Channel<CriticalSectionRawMutex, Buffer<SIZE>, SIZE>,
+pub struct Buffers<const SIZE: usize, B> {
+    buffers: Channel<CriticalSectionRawMutex, B, SIZE>,
     recycle: Channel<CriticalSectionRawMutex, Buffer<SIZE>, SIZE>,
 }
 
@@ -21,7 +22,7 @@ impl<const SIZE: usize> Drop for Buffer<SIZE> {
     }
 }
 
-impl<const SIZE: usize> Buffers<SIZE> {
+impl<const SIZE: usize, B: Send> Buffers<SIZE, B> {
     pub const fn new() -> Self {
         Self {
             buffers: Channel::new(),
@@ -42,11 +43,19 @@ impl<const SIZE: usize> Buffers<SIZE> {
         self.recycle.receive().await
     }
 
-    pub async fn send(&self, buffer: Buffer<SIZE>) {
+    pub async fn send(&self, buffer: B) {
         self.buffers.send(buffer).await;
     }
 
-    pub async fn receive(&self) -> Buffer<SIZE> {
+    pub fn can_send(&self) -> bool {
+        !self.buffers.is_full()
+    }
+
+    pub async fn receive(&self) -> B {
         self.buffers.receive().await
+    }
+
+    pub async fn receive_timeout(&self, timeout: Duration) -> Result<(), TimeoutError> {
+        with_timeout(timeout, self.buffers.ready_to_receive()).await
     }
 }

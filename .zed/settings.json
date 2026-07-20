@@ -18,8 +18,11 @@
                     "extraEnv": {
                         "RUSTUP_TOOLCHAIN": "esp",
                     }
+                },
+                "imports": {
+                    "preferNoStd": true
                 }
-            }
+            },
         }
     }
 }

@@ -3,11 +3,17 @@ extern crate alloc;
 use core::ops::ControlFlow;
 
 use crate::{
-    display::DisplayAsyncMutex, error::Error, player::video::VIDEO_BUFFERS, sdcard::SdCard,
+    display::DisplayAsyncMutex,
+    error::Error,
+    player::{
+        audio::AUDIO_BUFFERS,
+        video::{VIDEO_FRAMES, VideoFrame},
+    },
+    sdcard::SdCard,
     touch::TouchDetector,
 };
 pub use demux::DemuxError;
-use embassy_time::{Instant, Timer};
+use embassy_time::Duration;
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
@@ -69,32 +75,45 @@ where
     let mut demuxer = demux::Demuxer::new(reader)?;
     let frame_duration = demuxer.frame_duration();
 
-    let mut start: Option<Instant> = None;
-    let mut count = 0;
-    while let Some(chunk) = demuxer.next_video_chunk() {
-        let mut buffer = VIDEO_BUFFERS.get_recycled().await;
-        demuxer.read_chunk_data(chunk?, &mut buffer.data)?;
-
-        if let Some(start) = start {
-            let elapsed = start.elapsed();
-            if frame_duration > elapsed {
-                Timer::after(frame_duration - elapsed).await;
+    //XXX don't use can_send, use blocking send - or this is busy-wait
+    // XXX buffer 2 video frames, send video first (will block on audio signal)
+    let mut video_frame_count = 0;
+    let mut has_audio = true;
+    let mut has_video = true;
+    while has_audio || has_video {
+        while has_audio && AUDIO_BUFFERS.can_send() {
+            if let Some(audio_chunk) = demuxer.next_audio_chunk() {
+                let mut buffer = AUDIO_BUFFERS.get_recycled().await;
+                demuxer.read_chunk_data(audio_chunk?, &mut buffer.data)?;
+                AUDIO_BUFFERS.send(buffer).await;
             } else {
-                log::warn!("lag {:?}", elapsed - frame_duration);
+                has_audio = false;
+                let mut buffer = AUDIO_BUFFERS.get_recycled().await;
+                buffer.data.clear();
+                AUDIO_BUFFERS.send(buffer).await;
             }
         }
-        VIDEO_BUFFERS.send(buffer).await;
-        start = Some(Instant::now());
+        if has_video && VIDEO_FRAMES.can_send() {
+            if let Some(video_chunk) = demuxer.next_video_chunk() {
+                let mut buffer = VIDEO_FRAMES.get_recycled().await;
+                demuxer.read_chunk_data(video_chunk?, &mut buffer.data)?;
+                let frame = VideoFrame::new(video_frame_count * frame_duration, buffer);
+                VIDEO_FRAMES.send(frame).await;
+                video_frame_count += 1;
+            } else {
+                has_video = false;
+                let mut buffer = VIDEO_FRAMES.get_recycled().await;
+                buffer.data.clear();
+                VIDEO_FRAMES
+                    .send(VideoFrame::new(Duration::MIN, buffer))
+                    .await;
+            }
+        }
 
-        if count % 5 == 0 && touch_detector.was_touched() {
+        if video_frame_count % 5 == 0 && touch_detector.was_touched() {
+            //XXX send empties if not yet sent
             break;
         }
-        count += 1;
     }
-
-    // Send empty buffer
-    let mut buffer = VIDEO_BUFFERS.get_recycled().await;
-    buffer.data.clear();
-    VIDEO_BUFFERS.send(buffer).await;
     Ok(())
 }
