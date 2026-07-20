@@ -5,7 +5,7 @@ use core::ops::ControlFlow;
 use crate::{
     display::DisplayAsyncMutex,
     error::Error,
-    player::{audio::AudioBuffers, video::VideoFrames},
+    player::{audio::AudioBuffers, demux::Demuxer, video::VideoFrames},
     sdcard::SdCard,
     touch::TouchDetector,
 };
@@ -71,44 +71,60 @@ where
     let mut demuxer = demux::Demuxer::new(reader)?;
     let frame_duration = demuxer.frame_duration();
 
-    //XXX don't use can_send, use blocking send - or this is busy-wait
-    // XXX buffer 2 video frames, send video first (will block on audio signal)
-    let mut video_frame_count = 0;
-    let mut has_audio = true;
-    let mut has_video = true;
-    while has_audio || has_video {
-        while has_audio {
-            if let Some(audio_chunk) = demuxer.next_audio_chunk() {
-                AudioBuffers::demux(&mut demuxer, audio_chunk?).await?;
-            } else {
-                has_audio = false;
-                AudioBuffers::finish().await;
-            }
-        }
-        if has_video {
-            if let Some(video_chunk) = demuxer.next_video_chunk() {
-                VideoFrames::demux(
-                    &mut demuxer,
-                    video_chunk?,
-                    video_frame_count * frame_duration,
-                )
-                .await?;
-                video_frame_count += 1;
-            } else {
-                has_video = false;
-                VideoFrames::finish().await;
-            }
+    let mut video_frames = Some(VideoFrames::new(frame_duration));
+    let mut audio_buffers = Some(AudioBuffers::new());
+
+    while video_frames.is_some() || audio_buffers.is_some() {
+        if let Some(ref mut video) = video_frames
+            && !decode_video(&mut demuxer, video).await?
+            && let Some(video) = video_frames.take()
+        {
+            video.finish().await;
         }
 
-        if video_frame_count % 5 == 0 && touch_detector.was_touched() {
-            if has_video {
-                VideoFrames::finish().await;
+        if let Some(ref mut audio) = audio_buffers
+            && !decode_audio(&mut demuxer, audio).await?
+            && let Some(audio) = audio_buffers.take()
+        {
+            audio.finish().await;
+        }
+
+        if let Some(ref video) = video_frames
+            && video.frame_count() % 5 == 0
+            && touch_detector.was_touched()
+        {
+            if let Some(video) = video_frames.take() {
+                video.finish().await;
             }
-            if has_audio {
-                AudioBuffers::finish().await;
+            if let Some(audio) = audio_buffers.take() {
+                audio.finish().await;
             }
             break;
         }
     }
     Ok(())
+}
+
+async fn decode_audio<R: Read + Seek>(
+    demuxer: &mut Demuxer<R>,
+    audio_buffers: &mut AudioBuffers,
+) -> Result<bool, Error> {
+    if let Some(audio_chunk) = demuxer.next_audio_chunk() {
+        audio_buffers.demux(demuxer, audio_chunk?).await?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+async fn decode_video<R: Read + Seek>(
+    demuxer: &mut Demuxer<R>,
+    video_frames: &mut VideoFrames,
+) -> Result<bool, Error> {
+    if let Some(video_chunk) = demuxer.next_video_chunk() {
+        video_frames.demux(demuxer, video_chunk?).await?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }

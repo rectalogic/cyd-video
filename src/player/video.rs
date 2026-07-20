@@ -86,26 +86,41 @@ async fn render<const SIZE: usize>(
         .map_err(Error::Display)
 }
 
-pub struct VideoFrames;
+pub struct VideoFrames {
+    frame_count: u32,
+    frame_duration: Duration,
+}
 
 impl VideoFrames {
+    pub fn new(frame_duration: Duration) -> Self {
+        Self {
+            frame_count: 0,
+            frame_duration,
+        }
+    }
+
     pub async fn demux<R: Read + Seek>(
+        &mut self,
         demuxer: &mut Demuxer<R>,
         chunk: Riff<Chunk>,
-        timestamp: Duration,
     ) -> Result<(), Error> {
         let mut buffer = VIDEO_FRAMES.get_recycled().await;
         demuxer.read_chunk_data(chunk, &mut buffer.data)?;
-        let frame = VideoFrame::new(timestamp, buffer);
+        let frame = VideoFrame::new(self.frame_count * self.frame_duration, buffer);
         VIDEO_FRAMES.send(frame).await;
+        self.frame_count += 1;
         Ok(())
     }
 
-    pub async fn finish() {
+    pub async fn finish(self) {
         let mut buffer = VIDEO_FRAMES.get_recycled().await;
         buffer.data.clear();
         let frame = VideoFrame::new(Duration::MIN, buffer);
         VIDEO_FRAMES.send(frame).await;
+    }
+
+    pub fn frame_count(&self) -> u32 {
+        self.frame_count
     }
 }
 

@@ -90,10 +90,18 @@ async fn display_error(display: &'static DisplayAsyncMutex, message: fmt::Argume
     display.lock().await.message(message)
 }
 
-pub struct AudioBuffers;
+#[derive(Default)]
+pub struct AudioBuffers {
+    _private: (),
+}
 
 impl AudioBuffers {
+    pub fn new() -> Self {
+        Self { _private: () }
+    }
+
     pub async fn demux<R: Read + Seek>(
+        &self,
         demuxer: &mut Demuxer<R>,
         chunk: Riff<Chunk>,
     ) -> Result<(), Error> {
@@ -103,7 +111,7 @@ impl AudioBuffers {
         Ok(())
     }
 
-    pub async fn finish() {
+    pub async fn finish(self) {
         let mut buffer = AUDIO_BUFFERS.get_recycled().await;
         buffer.data.clear();
         AUDIO_BUFFERS.send(buffer).await;
