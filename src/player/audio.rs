@@ -22,7 +22,9 @@ pub const SAMPLE_RATE: u32 = 16_000;
 pub const SAMPLE_DATA_FORMAT: u16 = 16;
 pub const SAMPLE_CHANNELS: u8 = 1;
 
-static AUDIO_BUFFERS: Buffers<3, Buffer<3>> = Buffers::new();
+const BUFFER_COUNT: usize = 3;
+static AUDIO_BUFFERS: Buffers<BUFFER_COUNT, Buffer<BUFFER_COUNT>> = Buffers::new();
+pub type AudioBuffer = Buffer<BUFFER_COUNT>;
 
 static AUDIO_CLOCK: AtomicU32 = AtomicU32::new(0);
 static AUDIO_CLOCK_STARTED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
@@ -100,12 +102,16 @@ impl AudioBuffers {
         Self { _private: () }
     }
 
+    pub async fn get_buffer(&self) -> AudioBuffer {
+        AUDIO_BUFFERS.get_recycled().await
+    }
+
     pub async fn demux<R: Read + Seek>(
         &self,
         demuxer: &mut Demuxer<R>,
         chunk: Riff<Chunk>,
+        mut buffer: AudioBuffer,
     ) -> Result<(), Error> {
-        let mut buffer = AUDIO_BUFFERS.get_recycled().await;
         demuxer.read_chunk_data(chunk, &mut buffer.data)?;
         AUDIO_BUFFERS.send(buffer).await;
         Ok(())

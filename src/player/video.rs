@@ -21,7 +21,9 @@ pub use mjpeg::MjpegError;
 use render::JpegDrawable;
 use riffparse::{Chunk, Riff};
 
-static VIDEO_FRAMES: Buffers<1, VideoFrame<1>> = Buffers::new();
+const BUFFER_COUNT: usize = 1;
+static VIDEO_FRAMES: Buffers<BUFFER_COUNT, VideoFrame> = Buffers::new();
+pub type VideoBuffer = Buffer<BUFFER_COUNT>;
 
 #[embassy_executor::task]
 pub async fn video_task(display: &'static DisplayAsyncMutex) {
@@ -72,10 +74,10 @@ async fn play(display: &'static DisplayAsyncMutex) -> Result<(), Error> {
     }
 }
 
-async fn render<const SIZE: usize>(
+async fn render(
     decoder: &MjpegDecoder,
     size: Size,
-    frame: &VideoFrame<SIZE>,
+    frame: &VideoFrame,
     display: &'static DisplayAsyncMutex,
 ) -> Result<(), Error> {
     let drawable = JpegDrawable::new(decoder, size, &frame.buffer.data);
@@ -99,12 +101,16 @@ impl VideoFrames {
         }
     }
 
+    pub async fn get_buffer(&self) -> VideoBuffer {
+        VIDEO_FRAMES.get_recycled().await
+    }
+
     pub async fn demux<R: Read + Seek>(
         &mut self,
         demuxer: &mut Demuxer<R>,
         chunk: Riff<Chunk>,
+        mut buffer: VideoBuffer,
     ) -> Result<(), Error> {
-        let mut buffer = VIDEO_FRAMES.get_recycled().await;
         demuxer.read_chunk_data(chunk, &mut buffer.data)?;
         let frame = VideoFrame::new(self.frame_count * self.frame_duration, buffer);
         VIDEO_FRAMES.send(frame).await;
@@ -124,13 +130,13 @@ impl VideoFrames {
     }
 }
 
-struct VideoFrame<const SIZE: usize> {
+struct VideoFrame {
     timestamp: Duration,
-    buffer: Buffer<SIZE>,
+    buffer: VideoBuffer,
 }
 
-impl<const SIZE: usize> VideoFrame<SIZE> {
-    fn new(timestamp: Duration, buffer: Buffer<SIZE>) -> Self {
+impl VideoFrame {
+    fn new(timestamp: Duration, buffer: VideoBuffer) -> Self {
         Self { timestamp, buffer }
     }
 }

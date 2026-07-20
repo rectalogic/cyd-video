@@ -5,11 +5,16 @@ use core::ops::ControlFlow;
 use crate::{
     display::DisplayAsyncMutex,
     error::Error,
-    player::{audio::AudioBuffers, demux::Demuxer, video::VideoFrames},
+    player::{
+        audio::{AudioBuffer, AudioBuffers},
+        demux::Demuxer,
+        video::{VideoBuffer, VideoFrames},
+    },
     sdcard::SdCard,
     touch::TouchDetector,
 };
 pub use demux::DemuxError;
+use embassy_futures::select::{Either, select};
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
@@ -75,15 +80,37 @@ where
     let mut audio_buffers = Some(AudioBuffers::new());
 
     while video_frames.is_some() || audio_buffers.is_some() {
-        if let Some(ref mut video) = video_frames
-            && !decode_video(&mut demuxer, video).await?
+        let mut audio_buffer_future = None;
+        let mut video_buffer_future = None;
+
+        if let Some(ref mut video_frames) = video_frames {
+            video_buffer_future = Some(video_frames.get_buffer());
+        }
+        if let Some(ref mut audio_buffers) = audio_buffers {
+            audio_buffer_future = Some(audio_buffers.get_buffer());
+        }
+
+        let (audio_buffer, video_buffer) = match (audio_buffer_future, video_buffer_future) {
+            (Some(audio_b_f), Some(video_b_f)) => match select(audio_b_f, video_b_f).await {
+                Either::First(audio_buffer) => (Some(audio_buffer), None),
+                Either::Second(video_buffer) => (None, Some(video_buffer)),
+            },
+            (Some(audio_b_f), None) => (Some(audio_b_f.await), None),
+            (None, Some(video_b_f)) => (None, Some(video_b_f.await)),
+            (None, None) => break,
+        };
+
+        if let Some(video_buffer) = video_buffer
+            && let Some(ref mut video) = video_frames
+            && !decode_video(&mut demuxer, video, video_buffer).await?
             && let Some(video) = video_frames.take()
         {
             video.finish().await;
         }
 
-        if let Some(ref mut audio) = audio_buffers
-            && !decode_audio(&mut demuxer, audio).await?
+        if let Some(audio_buffer) = audio_buffer
+            && let Some(ref mut audio) = audio_buffers
+            && !decode_audio(&mut demuxer, audio, audio_buffer).await?
             && let Some(audio) = audio_buffers.take()
         {
             audio.finish().await;
@@ -108,9 +135,10 @@ where
 async fn decode_audio<R: Read + Seek>(
     demuxer: &mut Demuxer<R>,
     audio_buffers: &mut AudioBuffers,
+    buffer: AudioBuffer,
 ) -> Result<bool, Error> {
     if let Some(audio_chunk) = demuxer.next_audio_chunk() {
-        audio_buffers.demux(demuxer, audio_chunk?).await?;
+        audio_buffers.demux(demuxer, audio_chunk?, buffer).await?;
         Ok(true)
     } else {
         Ok(false)
@@ -120,9 +148,10 @@ async fn decode_audio<R: Read + Seek>(
 async fn decode_video<R: Read + Seek>(
     demuxer: &mut Demuxer<R>,
     video_frames: &mut VideoFrames,
+    buffer: VideoBuffer,
 ) -> Result<bool, Error> {
     if let Some(video_chunk) = demuxer.next_video_chunk() {
-        video_frames.demux(demuxer, video_chunk?).await?;
+        video_frames.demux(demuxer, video_chunk?, buffer).await?;
         Ok(true)
     } else {
         Ok(false)
