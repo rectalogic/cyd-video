@@ -3,16 +3,13 @@ use crate::{
     error::Error,
     player::{
         buffers::{Buffer, Buffers},
+        clock::Clock,
         demux::Demuxer,
     },
 };
-use core::{
-    fmt,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::fmt;
 pub use device::{AudioDevice, AudioError, Peripherals};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Instant};
+use embassy_time::Duration;
 use embedded_io::{Read, Seek};
 use riffparse::{Chunk, Riff};
 
@@ -25,9 +22,6 @@ pub const SAMPLE_CHANNELS: u8 = 1;
 const BUFFER_COUNT: usize = 3;
 static AUDIO_BUFFERS: Buffers<BUFFER_COUNT, Buffer<BUFFER_COUNT>> = Buffers::new();
 pub type AudioBuffer = Buffer<BUFFER_COUNT>;
-
-static AUDIO_CLOCK: AtomicU32 = AtomicU32::new(0);
-static AUDIO_CLOCK_STARTED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn audio_task(audio_peripherals: Peripherals, display: &'static DisplayAsyncMutex) {
@@ -50,8 +44,7 @@ pub async fn audio_task(audio_peripherals: Peripherals, display: &'static Displa
 
 async fn play_silence(audio_device: &mut AudioDevice) -> Result<(), Error> {
     const SILENCE: [u8; 512] = [0; _];
-    const TIMEOUT: Duration =
-        Duration::from_millis(AudioClock::audio_bytes_to_ms(SILENCE.len()) as u64 / 2);
+    const TIMEOUT: Duration = Duration::from_millis(audio_bytes_to_ms(SILENCE.len()) as u64 / 2);
     audio_device.push(&SILENCE).await?;
 
     while AUDIO_BUFFERS.receive_timeout(TIMEOUT).await.is_err() {
@@ -61,7 +54,7 @@ async fn play_silence(audio_device: &mut AudioDevice) -> Result<(), Error> {
 }
 
 async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
-    let mut audio_clock: Option<AudioClock> = None;
+    let mut clock_started = false;
 
     loop {
         let buffer = AUDIO_BUFFERS.receive().await;
@@ -70,18 +63,15 @@ async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
         }
         let mut remaining = buffer.data.as_slice();
         while !remaining.is_empty() {
-            match audio_clock {
-                Some(ref clock) => {
-                    remaining = &remaining[audio_device.push(remaining).await?..];
-                    clock.elapsed();
-                }
-                None => {
-                    let old_audio_bytes = AudioDevice::DMA_SIZE - audio_device.available().await?;
-                    let latency_ms = AudioClock::audio_bytes_to_ms(old_audio_bytes);
-                    remaining = &remaining[audio_device.push(remaining).await?..];
-                    audio_clock = Some(AudioClock::start(Instant::now(), latency_ms));
-                }
-            };
+            if !clock_started {
+                let old_audio_bytes = AudioDevice::DMA_SIZE - audio_device.available().await?;
+                let latency_ms = audio_bytes_to_ms(old_audio_bytes);
+                remaining = &remaining[audio_device.push(remaining).await?..];
+                Clock::start(Duration::from_millis(latency_ms as u64));
+                clock_started = true;
+            } else {
+                remaining = &remaining[audio_device.push(remaining).await?..];
+            }
         }
     }
 
@@ -124,38 +114,8 @@ impl AudioBuffers {
     }
 }
 
-pub struct AudioClock {
-    time: Instant,
-    latency_ms: u32,
-}
-
-impl AudioClock {
-    fn start(time: Instant, latency_ms: u32) -> Self {
-        Self::store(0);
-        AUDIO_CLOCK_STARTED.signal(());
-        Self { time, latency_ms }
-    }
-
-    pub async fn started() {
-        AUDIO_CLOCK_STARTED.wait().await;
-    }
-
-    fn elapsed(&self) -> u32 {
-        Self::store((self.time.elapsed().as_millis() as u32).saturating_sub(self.latency_ms))
-    }
-
-    fn store(ms: u32) -> u32 {
-        AUDIO_CLOCK.store(ms, Ordering::Relaxed);
-        ms
-    }
-
-    pub fn time() -> Duration {
-        Duration::from_millis(AUDIO_CLOCK.load(Ordering::Relaxed) as u64)
-    }
-
-    const fn audio_bytes_to_ms(bytes: usize) -> u32 {
-        const BYTES_PER_MS: u32 =
-            (SAMPLE_RATE * SAMPLE_CHANNELS as u32 * SAMPLE_DATA_FORMAT as u32 / 8) / 1000;
-        bytes as u32 / BYTES_PER_MS
-    }
+const fn audio_bytes_to_ms(bytes: usize) -> u32 {
+    const BYTES_PER_MS: u32 =
+        (SAMPLE_RATE * SAMPLE_CHANNELS as u32 * SAMPLE_DATA_FORMAT as u32 / 8) / 1000;
+    bytes as u32 / BYTES_PER_MS
 }

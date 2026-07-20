@@ -20,6 +20,7 @@ use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
 pub mod audio;
 mod buffers;
+mod clock;
 mod demux;
 pub mod video;
 

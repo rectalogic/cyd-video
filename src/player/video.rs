@@ -7,8 +7,8 @@ use crate::{
     display::{CENTER, DisplayAsyncMutex},
     error::Error,
     player::{
-        audio::AudioClock,
         buffers::{Buffer, Buffers},
+        clock::Clock,
         demux::Demuxer,
     },
 };
@@ -43,38 +43,27 @@ async fn play(display: &'static DisplayAsyncMutex) -> Result<(), Error> {
         .clear(Rgb565::BLACK)
         .map_err(Error::Display)?;
     let decoder = MjpegDecoder::new()?;
-    let mut size = None;
+    let mut initialized = None;
     loop {
         let frame = VIDEO_FRAMES.receive().await;
         if frame.buffer.data.is_empty() {
             return Ok(());
         }
-        let jpeg_size = match size {
-            Some(size) => size,
+        let (jpeg_size, clock) = match initialized {
+            Some(initialized) => initialized,
             None => {
                 let (w, h) = decoder.prepare(&frame.buffer.data)?;
-                // This is first frame of a new video, wait for audio clock
-                AudioClock::started().await;
-                *size.insert(Size::new(w as u32, h as u32))
+                // This is first frame of a new video, wait for clock
+                *initialized.insert((Size::new(w as u32, h as u32), Clock::started().await))
             }
         };
 
-        let audio_time = AudioClock::time();
-        let begin_timestamp = frame.timestamp();
-        let end_timestamp = begin_timestamp + frame.frame_duration;
-        if audio_time < begin_timestamp {
-            log::info!(
-                "Delay video frame {:?} (audio time {:?})",
-                frame,
-                audio_time
-            ); //XXX
-            Timer::after(begin_timestamp - audio_time).await;
-        } else if audio_time > end_timestamp {
-            log::warn!(
-                "Skipping late frame {:?} (audio time {:?})",
-                frame,
-                audio_time
-            );
+        let time = clock.elapsed();
+        let timestamp = frame.timestamp();
+        if time < timestamp {
+            Timer::after(timestamp - time).await;
+        } else if time > timestamp + frame.frame_duration {
+            log::warn!("Skipping late frame {:?} (time {:?})", frame, time);
             continue;
         }
         render(&decoder, jpeg_size, &frame, display).await?;
