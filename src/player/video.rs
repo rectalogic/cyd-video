@@ -12,7 +12,7 @@ use crate::{
         demux::Demuxer,
     },
 };
-use core::ops::DerefMut;
+use core::{fmt, ops::DerefMut};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use embedded_io::{Read, Seek};
@@ -21,7 +21,7 @@ pub use mjpeg::MjpegError;
 use render::JpegDrawable;
 use riffparse::{Chunk, Riff};
 
-const BUFFER_COUNT: usize = 1;
+const BUFFER_COUNT: usize = 2;
 static VIDEO_FRAMES: Buffers<BUFFER_COUNT, VideoFrame> = Buffers::new();
 pub type VideoBuffer = Buffer<BUFFER_COUNT>;
 
@@ -60,12 +60,19 @@ async fn play(display: &'static DisplayAsyncMutex) -> Result<(), Error> {
         };
 
         let audio_time = AudioClock::time();
-        if frame.timestamp >= audio_time {
-            Timer::after(frame.timestamp - audio_time).await;
-        } else {
+        let begin_timestamp = frame.timestamp();
+        let end_timestamp = begin_timestamp + frame.frame_duration;
+        if audio_time < begin_timestamp {
+            log::info!(
+                "Delay video frame {:?} (audio time {:?})",
+                frame,
+                audio_time
+            ); //XXX
+            Timer::after(begin_timestamp - audio_time).await;
+        } else if audio_time > end_timestamp {
             log::warn!(
-                "Skipping late frame {:?} (time {:?})",
-                frame.timestamp,
+                "Skipping late frame {:?} (audio time {:?})",
+                frame,
                 audio_time
             );
             continue;
@@ -112,7 +119,7 @@ impl VideoFrames {
         mut buffer: VideoBuffer,
     ) -> Result<(), Error> {
         demuxer.read_chunk_data(chunk, &mut buffer.data)?;
-        let frame = VideoFrame::new(self.frame_count * self.frame_duration, buffer);
+        let frame = VideoFrame::new(self.frame_count, self.frame_duration, buffer);
         VIDEO_FRAMES.send(frame).await;
         self.frame_count += 1;
         Ok(())
@@ -121,7 +128,7 @@ impl VideoFrames {
     pub async fn finish(self) {
         let mut buffer = VIDEO_FRAMES.get_recycled().await;
         buffer.data.clear();
-        let frame = VideoFrame::new(Duration::MIN, buffer);
+        let frame = VideoFrame::new(0, Duration::MIN, buffer);
         VIDEO_FRAMES.send(frame).await;
     }
 
@@ -131,12 +138,32 @@ impl VideoFrames {
 }
 
 struct VideoFrame {
-    timestamp: Duration,
+    count: u32,
+    frame_duration: Duration,
     buffer: VideoBuffer,
 }
 
 impl VideoFrame {
-    fn new(timestamp: Duration, buffer: VideoBuffer) -> Self {
-        Self { timestamp, buffer }
+    fn new(count: u32, frame_duration: Duration, buffer: VideoBuffer) -> Self {
+        Self {
+            count,
+            frame_duration,
+            buffer,
+        }
+    }
+
+    fn timestamp(&self) -> Duration {
+        self.count * self.frame_duration
+    }
+}
+
+impl fmt::Debug for VideoFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let timestamp = self.timestamp();
+        f.debug_struct("VideoFrame")
+            .field("count", &self.count)
+            .field("timestamp", &timestamp)
+            .field("end_timestamp", &(timestamp + self.frame_duration))
+            .finish()
     }
 }

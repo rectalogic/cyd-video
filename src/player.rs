@@ -79,7 +79,7 @@ where
     let mut video_frames = Some(VideoFrames::new(frame_duration));
     let mut audio_buffers = Some(AudioBuffers::new());
 
-    while video_frames.is_some() || audio_buffers.is_some() {
+    loop {
         let mut audio_buffer_future = None;
         let mut video_buffer_future = None;
 
