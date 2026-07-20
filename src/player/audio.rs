@@ -1,7 +1,10 @@
 use crate::{
     display::DisplayAsyncMutex,
     error::Error,
-    player::buffers::{Buffer, Buffers},
+    player::{
+        buffers::{Buffer, Buffers},
+        demux::Demuxer,
+    },
 };
 use core::{
     fmt,
@@ -10,6 +13,8 @@ use core::{
 pub use device::{AudioDevice, AudioError, Peripherals};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Instant};
+use embedded_io::{Read, Seek};
+use riffparse::{Chunk, Riff};
 
 mod device;
 
@@ -17,7 +22,7 @@ pub const SAMPLE_RATE: u32 = 16_000;
 pub const SAMPLE_DATA_FORMAT: u16 = 16;
 pub const SAMPLE_CHANNELS: u8 = 1;
 
-pub static AUDIO_BUFFERS: Buffers<3, Buffer<3>> = Buffers::new();
+static AUDIO_BUFFERS: Buffers<3, Buffer<3>> = Buffers::new();
 
 static AUDIO_CLOCK: AtomicU32 = AtomicU32::new(0);
 static AUDIO_CLOCK_STARTED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
@@ -83,6 +88,26 @@ async fn play(audio_device: &mut AudioDevice) -> Result<(), Error> {
 
 async fn display_error(display: &'static DisplayAsyncMutex, message: fmt::Arguments<'_>) -> ! {
     display.lock().await.message(message)
+}
+
+pub struct AudioBuffers;
+
+impl AudioBuffers {
+    pub async fn demux<R: Read + Seek>(
+        demuxer: &mut Demuxer<R>,
+        chunk: Riff<Chunk>,
+    ) -> Result<(), Error> {
+        let mut buffer = AUDIO_BUFFERS.get_recycled().await;
+        demuxer.read_chunk_data(chunk, &mut buffer.data)?;
+        AUDIO_BUFFERS.send(buffer).await;
+        Ok(())
+    }
+
+    pub async fn finish() {
+        let mut buffer = AUDIO_BUFFERS.get_recycled().await;
+        buffer.data.clear();
+        AUDIO_BUFFERS.send(buffer).await;
+    }
 }
 
 pub struct AudioClock {

@@ -47,10 +47,6 @@ impl<const SIZE: usize, B: Send> Buffers<SIZE, B> {
         self.buffers.send(buffer).await;
     }
 
-    pub fn can_send(&self) -> bool {
-        !self.buffers.is_full()
-    }
-
     pub async fn receive(&self) -> B {
         self.buffers.receive().await
     }

@@ -5,15 +5,11 @@ use core::ops::ControlFlow;
 use crate::{
     display::DisplayAsyncMutex,
     error::Error,
-    player::{
-        audio::AUDIO_BUFFERS,
-        video::{VIDEO_FRAMES, VideoFrame},
-    },
+    player::{audio::AudioBuffers, video::VideoFrames},
     sdcard::SdCard,
     touch::TouchDetector,
 };
 pub use demux::DemuxError;
-use embassy_time::Duration;
 use embedded_io::{Read, Seek};
 use embedded_sdmmc::{ShortFileName, VolumeIdx};
 
@@ -81,37 +77,36 @@ where
     let mut has_audio = true;
     let mut has_video = true;
     while has_audio || has_video {
-        while has_audio && AUDIO_BUFFERS.can_send() {
+        while has_audio {
             if let Some(audio_chunk) = demuxer.next_audio_chunk() {
-                let mut buffer = AUDIO_BUFFERS.get_recycled().await;
-                demuxer.read_chunk_data(audio_chunk?, &mut buffer.data)?;
-                AUDIO_BUFFERS.send(buffer).await;
+                AudioBuffers::demux(&mut demuxer, audio_chunk?).await?;
             } else {
                 has_audio = false;
-                let mut buffer = AUDIO_BUFFERS.get_recycled().await;
-                buffer.data.clear();
-                AUDIO_BUFFERS.send(buffer).await;
+                AudioBuffers::finish().await;
             }
         }
-        if has_video && VIDEO_FRAMES.can_send() {
+        if has_video {
             if let Some(video_chunk) = demuxer.next_video_chunk() {
-                let mut buffer = VIDEO_FRAMES.get_recycled().await;
-                demuxer.read_chunk_data(video_chunk?, &mut buffer.data)?;
-                let frame = VideoFrame::new(video_frame_count * frame_duration, buffer);
-                VIDEO_FRAMES.send(frame).await;
+                VideoFrames::demux(
+                    &mut demuxer,
+                    video_chunk?,
+                    video_frame_count * frame_duration,
+                )
+                .await?;
                 video_frame_count += 1;
             } else {
                 has_video = false;
-                let mut buffer = VIDEO_FRAMES.get_recycled().await;
-                buffer.data.clear();
-                VIDEO_FRAMES
-                    .send(VideoFrame::new(Duration::MIN, buffer))
-                    .await;
+                VideoFrames::finish().await;
             }
         }
 
         if video_frame_count % 5 == 0 && touch_detector.was_touched() {
-            //XXX send empties if not yet sent
+            if has_video {
+                VideoFrames::finish().await;
+            }
+            if has_audio {
+                AudioBuffers::finish().await;
+            }
             break;
         }
     }

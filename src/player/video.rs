@@ -9,16 +9,19 @@ use crate::{
     player::{
         audio::AudioClock,
         buffers::{Buffer, Buffers},
+        demux::Demuxer,
     },
 };
 use core::ops::DerefMut;
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
+use embedded_io::{Read, Seek};
 use mjpeg::MjpegDecoder;
 pub use mjpeg::MjpegError;
 use render::JpegDrawable;
+use riffparse::{Chunk, Riff};
 
-pub static VIDEO_FRAMES: Buffers<1, VideoFrame<1>> = Buffers::new();
+static VIDEO_FRAMES: Buffers<1, VideoFrame<1>> = Buffers::new();
 
 #[embassy_executor::task]
 pub async fn video_task(display: &'static DisplayAsyncMutex) {
@@ -83,13 +86,36 @@ async fn render<const SIZE: usize>(
         .map_err(Error::Display)
 }
 
-pub struct VideoFrame<const SIZE: usize> {
+pub struct VideoFrames;
+
+impl VideoFrames {
+    pub async fn demux<R: Read + Seek>(
+        demuxer: &mut Demuxer<R>,
+        chunk: Riff<Chunk>,
+        timestamp: Duration,
+    ) -> Result<(), Error> {
+        let mut buffer = VIDEO_FRAMES.get_recycled().await;
+        demuxer.read_chunk_data(chunk, &mut buffer.data)?;
+        let frame = VideoFrame::new(timestamp, buffer);
+        VIDEO_FRAMES.send(frame).await;
+        Ok(())
+    }
+
+    pub async fn finish() {
+        let mut buffer = VIDEO_FRAMES.get_recycled().await;
+        buffer.data.clear();
+        let frame = VideoFrame::new(Duration::MIN, buffer);
+        VIDEO_FRAMES.send(frame).await;
+    }
+}
+
+struct VideoFrame<const SIZE: usize> {
     timestamp: Duration,
     buffer: Buffer<SIZE>,
 }
 
 impl<const SIZE: usize> VideoFrame<SIZE> {
-    pub fn new(timestamp: Duration, buffer: Buffer<SIZE>) -> Self {
+    fn new(timestamp: Duration, buffer: Buffer<SIZE>) -> Self {
         Self { timestamp, buffer }
     }
 }
