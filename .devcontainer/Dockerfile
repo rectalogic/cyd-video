@@ -11,6 +11,13 @@ RUN apt-get update \
     libusb-1.0-0 libssl-dev libudev-dev pkg-config \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/library-scripts
 
+COPY <<'EOF' /entrypoint.sh
+#!/bin/bash
+source /home/esp/export-esp.sh
+exec "$@"
+EOF
+RUN chmod +x /entrypoint.sh
+
 RUN useradd -ms /bin/bash esp
 USER esp
 WORKDIR /home/esp
@@ -34,4 +41,8 @@ RUN ARCH=$(/home/esp/.cargo/bin/rustup show | grep "Default host" | sed -e 's/.*
 RUN espup install --targets esp32s3 --export-file /home/esp/export-esp.sh --toolchain-version 1.93.0.0
 RUN echo "source /home/esp/export-esp.sh" >> ~/.bashrc
 
+# Create with esp user permissions so we can mount a named volume over it
+RUN mkdir -p /home/esp/.cargo/registry
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD [ "/bin/bash" ]
