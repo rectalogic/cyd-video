@@ -108,8 +108,10 @@ impl AudioDevice {
                     &mut delay,
                 )
                 .map_err(AudioError::Es8311)?;
-            codec.volume_set(&mut i2c, 80, None).unwrap();
-            codec.mute(&mut i2c, false).unwrap();
+            codec
+                .volume_set(&mut i2c, 70, None)
+                .map_err(AudioError::Es8311)?; //XXX adjust volume
+            codec.mute(&mut i2c, false).map_err(AudioError::Es8311)?;
 
             // Enable amp
             audio_enable.set_low();
