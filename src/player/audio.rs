@@ -19,7 +19,7 @@ pub const SAMPLE_RATE: u32 = 16_000;
 pub const SAMPLE_DATA_FORMAT: u16 = 16;
 pub const SAMPLE_CHANNELS: u8 = 1;
 
-const BUFFER_COUNT: usize = 3;
+const BUFFER_COUNT: usize = 5;
 static AUDIO_BUFFERS: Buffers<BUFFER_COUNT, Buffer<BUFFER_COUNT>> = Buffers::new();
 pub type AudioBuffer = Buffer<BUFFER_COUNT>;
 

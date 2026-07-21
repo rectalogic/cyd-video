@@ -62,7 +62,7 @@ async fn play(display: &'static DisplayAsyncMutex) -> Result<(), Error> {
         let timestamp = frame.timestamp();
         if time < timestamp {
             Timer::after(timestamp - time).await;
-        } else if time > timestamp + frame.frame_duration {
+        } else if time > timestamp + 2 * frame.frame_duration {
             log::warn!("Skipping late frame {:?} (time {:?})", frame, time);
             continue;
         }

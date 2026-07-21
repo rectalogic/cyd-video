@@ -46,7 +46,7 @@ pub enum AudioError {
 }
 
 impl AudioDevice {
-    pub const DMA_SIZE: usize = 4096;
+    pub const DMA_SIZE: usize = 4 * 1024;
 
     pub fn new(peripherals: Peripherals) -> Result<Self, AudioError> {
         let (_, _, tx_buffer, tx_descriptors) = dma_circular_buffers!(0, AudioDevice::DMA_SIZE);
