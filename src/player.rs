@@ -24,6 +24,19 @@ mod clock;
 mod demux;
 pub mod video;
 
+#[cfg(feature = "embed-video")]
+static EMBEDDED_VIDEO: &[u8] = include_bytes!(env!("EMBED_VIDEO"));
+
+#[cfg(feature = "embed-video")]
+pub async fn play_embedded(touch_detector: &TouchDetector) -> Result<(), Error> {
+    log::info!("Play embedded");
+    play(
+        embedded_io_adapters::Cursor::new(EMBEDDED_VIDEO),
+        touch_detector,
+    )
+    .await
+}
+
 pub async fn play_directory(
     avi_dir: &str,
     sdcard: &mut SdCard,

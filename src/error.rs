@@ -17,7 +17,9 @@ pub enum Error {
     #[error("Display error: `{0:?}`")]
     Display(DisplayError),
     #[error("SD card error: `{0}`")]
-    SdCard(#[from] embedded_sdmmc::Error<SdCardError>),
+    SdCard(#[from] SdCardError),
+    #[error("SD card error: `{0}`")]
+    SdCardError(#[from] embedded_sdmmc::Error<SdCardError>),
     #[error("SD card read exact error: `{0}`")]
     ReadExact(#[from] ReadExactError<embedded_sdmmc::Error<SdCardError>>),
     #[error("bin read error: `{0:?}`")]

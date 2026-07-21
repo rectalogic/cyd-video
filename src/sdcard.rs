@@ -2,7 +2,7 @@ use crate::error::Error;
 use core::ops::{Deref, DerefMut};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use embedded_sdmmc::{TimeSource, Timestamp, VolumeManager};
+use embedded_sdmmc::{TimeSource, Timestamp, VolumeManager, sdcard::spi::AcquireOpts};
 use esp_hal::{
     Blocking,
     gpio::{AnyPin, Level, Output, OutputConfig},
@@ -45,10 +45,16 @@ impl SdCard {
         .with_miso(peripherals.miso);
 
         let spi_dev = ExclusiveDevice::new(spi, cs, Delay).unwrap();
-        let sdcard = embedded_sdmmc::SdCard::new(spi_dev, Delay);
+        let options = AcquireOpts {
+            // If embedding video, don't try SD for too long
+            #[cfg(feature = "embed-video")]
+            acquire_retries: 10,
+            ..Default::default()
+        };
+        let sdcard = embedded_sdmmc::SdCard::new_with_options(spi_dev, Delay, options);
 
         // Force initialization
-        let _ = sdcard.num_bytes();
+        let _ = sdcard.num_bytes()?;
 
         // Reclock
         sdcard.spi(|spi| {

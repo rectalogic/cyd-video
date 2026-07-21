@@ -54,21 +54,6 @@ async fn main(spawner: Spawner) -> ! {
     };
     let display = cyd_player::display::Display::new(display_peripherals);
 
-    let sdcard_peripherals = cyd_player::sdcard::Peripherals {
-        spi3: peripherals.SPI3,
-        cs: peripherals.GPIO47.into(),
-        sclk: peripherals.GPIO38.into(),
-        miso: peripherals.GPIO39.into(),
-        mosi: peripherals.GPIO40.into(),
-    };
-    let mut sdcard = match cyd_player::sdcard::SdCard::new(sdcard_peripherals) {
-        Ok(sdcard) => sdcard,
-        Err(e) => display
-            .lock()
-            .await
-            .message(format_args!("SD card error: {e:?}")),
-    };
-
     let touch_peripherals = cyd_player::touch::Peripherals {
         irq: peripherals.GPIO17.into(),
     };
@@ -113,12 +98,37 @@ async fn main(spawner: Spawner) -> ! {
     };
     spawner.spawn(video_spawn_token);
 
-    log::info!("Loading dir {AVI_DIRECTORY}");
-    if let Err(e) =
-        cyd_player::player::play_directory(AVI_DIRECTORY, &mut sdcard, display, &touch_detector)
+    let sdcard_peripherals = cyd_player::sdcard::Peripherals {
+        spi3: peripherals.SPI3,
+        cs: peripherals.GPIO47.into(),
+        sclk: peripherals.GPIO38.into(),
+        miso: peripherals.GPIO39.into(),
+        mosi: peripherals.GPIO40.into(),
+    };
+    match cyd_player::sdcard::SdCard::new(sdcard_peripherals) {
+        Ok(mut sdcard) => {
+            if let Err(e) = cyd_player::player::play_directory(
+                AVI_DIRECTORY,
+                &mut sdcard,
+                display,
+                &touch_detector,
+            )
             .await
-    {
-        display.lock().await.message(format_args!("{e:?}"))
+            {
+                display.lock().await.message(format_args!("{e:?}"))
+            };
+        }
+        #[cfg(feature = "embed-video")]
+        Err(_) => loop {
+            if let Err(e) = cyd_player::player::play_embedded(&touch_detector).await {
+                display.lock().await.message(format_args!("{e:?}"))
+            };
+        },
+        #[cfg(not(feature = "embed-video"))]
+        Err(e) => display
+            .lock()
+            .await
+            .message(format_args!("SD card error: {e:?}")),
     };
 
     unreachable!();

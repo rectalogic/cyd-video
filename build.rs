@@ -1,12 +1,48 @@
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     linker_be_nice();
 
     esp_new_jpeg();
 
+    embed_video();
+
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
+}
+
+fn embed_video() {
+    println!("cargo:rerun-if-env-changed=EMBED_VIDEO");
+    let embed_enabled = std::env::var("CARGO_FEATURE_EMBED_VIDEO").is_ok();
+    let embed_env_var_set = std::env::var("EMBED_VIDEO").is_ok();
+
+    if embed_enabled && !embed_env_var_set {
+        panic!(
+            "'embed_video' feature is enabled, but EMBED_VIDEO environment variable is not set."
+        );
+    }
+    if !embed_enabled && embed_env_var_set {
+        panic!(
+            "EMBED_VIDEO environment variable is set, but 'embed_video' feature is not enabled."
+        );
+    }
+
+    if embed_enabled && embed_env_var_set {
+        let path = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join(std::env::var("EMBED_VIDEO").unwrap());
+        if !path.exists() {
+            panic!(
+                "The file specified by EMBED_VIDEO does not exist: {}",
+                path.display()
+            );
+        }
+
+        println!("cargo:rustc-env=EMBED_VIDEO={}", path.display());
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
 }
 
 fn esp_new_jpeg() {
