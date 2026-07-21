@@ -42,7 +42,7 @@ RUN espup install --targets esp32s3 --export-file /home/esp/export-esp.sh --tool
 RUN echo "source /home/esp/export-esp.sh" >> ~/.bashrc
 
 # Create with esp user permissions so we can mount a named volume over it
-RUN mkdir -p /home/esp/.cargo/registry
+RUN mkdir -p /home/esp/.cargo
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD [ "/bin/bash" ]
