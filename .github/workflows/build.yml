@@ -31,3 +31,5 @@ jobs:
       - name: Build
         run: |
           cargo build --release
+          touch video.avi
+          EMBED_VIDEO=video.avi cargo build -F embed-video --release

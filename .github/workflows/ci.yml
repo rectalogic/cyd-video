@@ -31,4 +31,5 @@ jobs:
       - name: Run checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy --all-features -- -D warnings
+          touch video.avi
+          EMBED_VIDEO=video.avi cargo clippy --all-features -- -D warnings
