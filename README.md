@@ -9,29 +9,28 @@ So this is now a video player for the esp32s3 [E32N28P/E32C28P](https://www.lcdw
 
 ## Development
 
+Install [espflash](https://github.com/esp-rs/espflash/blob/main/espflash/README.md#installation) and [Docker](https://www.docker.com/products/docker-desktop/) (or [OrbStack](https://orbstack.dev))
+
+Build and flash a connected device:
 ```sh-session
-$ cargo install espup espflash
-$ espup install --targets esp32s3
+$ scripts/docker.sh cargo build --release
+$ espflash flash --monitor --chip esp32s3 target/xtensa-esp32s3-none-elf/release/cyd-video
 ```
 
-Configure environment variables, see the
-[documentation](https://github.com/esp-rs/espup?tab=readme-ov-file#environment-variables-setup).
-e.g. `. ~/export-esp.sh`.
+You can also build the firmware with an embedded video, if no SD card is detected the embedded video will play:
+```sh-session
+$ EMBED_VIDEO=test.avi scripts/docker.sh cargo build -F embed-video --release
+```
 
 The SD card must have an `AVI` directory containing 8.3 filename AVI videos encoded with `scripts/encode.sh`.
-
-```sh-session
-$ cd cyd-player
-$ cargo run --release
-```
-or
-```sh-session
-$ cd cyd-player
-$ cargo build --release
-```
 
 Encode and play back video (requires [ffmpeg/ffplay](https://ffmpeg.org)):
 
 ```sh-session
-$ scripts/encode.sh <input.mp4> output.avi
+$ scripts/encode.sh <input.mp4> <output.avi>
+```
+
+You can also specify the framerate:
+```sh-session
+$ scripts/encode.sh -r 25 <input.mp4> <output.avi>
 ```
