@@ -62,6 +62,7 @@ embedded-io = "0.7"  # match embedded-sdmmc
 format_no_std = "1.2.0"
 riffparse = { git = "https://github.com/rectalogic/riffparse.git", tag = "0.5.0", default-features = false, features = ["embedded-io"] }
 thiserror = { version = "2.0.18", default-features = false }
+device-envoy-esp = { version = "0.1.0", features = ["esp32s3"] }
 
 [lints.clippy]
 # mem::forget is generally not safe to do with esp_hal types, especially those holding buffers for the duration of a data transfer.
